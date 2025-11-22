@@ -10,7 +10,7 @@
     "convex:clean-push": "rimraf out && convex push"
   },
   "dependencies": {
-    "@auth/core": "^0.40.0",
+    "@auth/core": "^0.37.0",
     "@clerk/clerk-react": "^5.50.0",
     "@clerk/nextjs": "^6.34.0",
     "@convex-dev/auth": "^0.0.90",
@@ -73,7 +73,6 @@
     "svix": "^1.80.0",
     "tailwind-merge": "^2.5.5",
     "tailwindcss-animate": "^1.0.7",
-    "vaul": "^0.9.9",
     "zod": "3.25.67"
   },
   "devDependencies": {
