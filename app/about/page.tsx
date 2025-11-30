@@ -71,10 +71,10 @@ export default function AboutPage() {
   ];
 
   return (
-    <div className="min-h-screen bg-gray-50 py-12 px-6">
+    <div className="min-h-screen bg-gray-50 py-6 px-2 sm:py-12 sm:px-6">
       <div className="max-w-6xl mx-auto">
         {/* Header */}
-        <div className="text-center mb-12">
+        <div className="text-center mb-8 sm:mb-12">
           <Button
             variant="ghost"
             onClick={() => router.back()}
@@ -83,8 +83,8 @@ export default function AboutPage() {
             <ArrowLeft className="h-4 w-4 mr-2" />
             Back
           </Button>
-          <h1 className="text-4xl font-bold text-gray-900 mb-4">About Smart Formify</h1>
-          <p className="text-lg text-gray-600 max-w-3xl mx-auto">
+          <h1 className="text-2xl sm:text-4xl font-bold text-gray-900 mb-2 sm:mb-4">About Smart Formify</h1>
+          <p className="text-base sm:text-lg text-gray-600 max-w-3xl mx-auto">
             We're revolutionizing the way businesses collect and analyze data through intelligent, 
             user-friendly form building solutions. Our mission is to make data collection 
             accessible, efficient, and insightful for everyone.
@@ -92,7 +92,7 @@ export default function AboutPage() {
         </div>
 
         {/* Mission & Vision */}
-        <div className="grid md:grid-cols-2 gap-8 mb-16">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 sm:gap-8 mb-10 sm:mb-16">
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center space-x-2">
@@ -101,7 +101,7 @@ export default function AboutPage() {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <p className="text-gray-600">
+              <p className="text-gray-600 text-sm sm:text-base">
                 To democratize data collection by providing powerful, yet simple tools that enable 
                 businesses of all sizes to gather insights, understand their audience, and make 
                 data-driven decisions without the complexity of traditional enterprise solutions.
@@ -117,7 +117,7 @@ export default function AboutPage() {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <p className="text-gray-600">
+              <p className="text-gray-600 text-sm sm:text-base">
                 To become the world's leading platform for intelligent form building, where 
                 anyone can create sophisticated data collection tools that adapt and learn 
                 from user behavior, providing unprecedented insights and automation.
@@ -127,45 +127,40 @@ export default function AboutPage() {
         </div>
 
         {/* What We Do */}
-        <div className="mb-16">
-          <h2 className="text-3xl font-bold text-center mb-8">What We Do</h2>
-          <div className="grid md:grid-cols-3 gap-6">
+        <div className="mb-10 sm:mb-16">
+          <h2 className="text-2xl sm:text-3xl font-bold text-center mb-6 sm:mb-8">What We Do</h2>
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 sm:gap-6">
             {features.map((feature, index) => (
               <Card key={index} className="text-center">
-                <CardContent className="p-6">
-                  <div className={`w-12 h-12 ${feature.color} rounded-full flex items-center justify-center mx-auto mb-4`}>
-                    <feature.icon className="h-6 w-6 text-white" />
+                <CardContent className="p-4 sm:p-6">
+                  <div className={`w-10 h-10 sm:w-12 sm:h-12 ${feature.color} rounded-full flex items-center justify-center mx-auto mb-3 sm:mb-4`}>
+                    <feature.icon className="h-5 w-5 sm:h-6 sm:w-6 text-white" />
                   </div>
-                  <h3 className="text-xl font-semibold mb-2">{feature.title}</h3>
-                  <p className="text-gray-600">{feature.description}</p>
+                  <h3 className="text-lg sm:text-xl font-semibold mb-1 sm:mb-2">{feature.title}</h3>
+                  <p className="text-gray-600 text-xs sm:text-base">{feature.description}</p>
                 </CardContent>
               </Card>
             ))}
           </div>
         </div>
 
-       
-       
-
-        
-       
         {/* Team */}
-        <div className="mb-16">
-          <h2 className="text-3xl font-bold text-center mb-8">Meet Our Team</h2>
-          <div className="grid md:grid-cols-2 gap-8">
+        <div className="mb-10 sm:mb-16">
+          <h2 className="text-2xl sm:text-3xl font-bold text-center mb-6 sm:mb-8">Meet Our Team</h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 sm:gap-8">
             {team.map((member, index) => (
               <Card key={index}>
-                <CardContent className="p-6">
-                  <div className="flex items-center space-x-4">
+                <CardContent className="p-4 sm:p-6">
+                  <div className="flex items-center space-x-3 sm:space-x-4">
                     <img
                       src={member.image}
                       alt={member.name}
-                      className="w-16 h-16 rounded-full object-cover"
+                      className="w-12 h-12 sm:w-16 sm:h-16 rounded-full object-cover"
                     />
                     <div>
-                      <h3 className="text-xl font-semibold">{member.name}</h3>
-                      <p className="text-primary font-medium">{member.role}</p>
-                      <p className="text-gray-600 mt-2">{member.bio}</p>
+                      <h3 className="text-lg sm:text-xl font-semibold">{member.name}</h3>
+                      <p className="text-primary font-medium text-sm sm:text-base">{member.role}</p>
+                      <p className="text-gray-600 mt-1 sm:mt-2 text-xs sm:text-base">{member.bio}</p>
                     </div>
                   </div>
                 </CardContent>
@@ -175,9 +170,9 @@ export default function AboutPage() {
         </div>
 
         {/* Why Choose Us */}
-        <div className="mb-16">
-          <h2 className="text-3xl font-bold text-center mb-8">Why Choose Smart Formify?</h2>
-          <div className="grid md:grid-cols-2 gap-8">
+        <div className="mb-10 sm:mb-16">
+          <h2 className="text-2xl sm:text-3xl font-bold text-center mb-6 sm:mb-8">Why Choose Smart Formify?</h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 sm:gap-8">
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center space-x-2">

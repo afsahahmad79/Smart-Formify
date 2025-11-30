@@ -75,53 +75,57 @@ export default function AdminPage() {
   };
 
   return (
-    <div className="container mx-auto py-10">
-      <h1 className="text-2xl font-bold mb-6">Admin Dashboard - User Management</h1>
-      <Table>
-        <TableHeader>
-          <TableRow>
-            <TableHead>Name</TableHead>
-            <TableHead>Email/Token ID</TableHead>
-            <TableHead>Role</TableHead>
-            <TableHead>Actions</TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {users.map((user: User) => (
-            <TableRow key={user._id}>
-              <TableCell>{user.name}</TableCell>
-              <TableCell className="max-w-xs truncate">{user.tokenIdentifier}</TableCell>
-              <TableCell>
-                <Badge variant={user.role === "admin" ? "default" : "secondary"}>
-                  {user.role}
-                </Badge>
-              </TableCell>
-              <TableCell>
-                <Select
-                  value={user.role}
-                  onValueChange={(value) => handleUpdateRole(user._id, value as "user" | "admin")}
-                >
-                  <SelectTrigger className="w-[100px]">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="user">User</SelectItem>
-                    <SelectItem value="admin">Admin</SelectItem>
-                  </SelectContent>
-                </Select>
-                <Button
-                  variant="destructive"
-                  size="sm"
-                  className="ml-2"
-                  onClick={() => handleDeleteUser(user._id)}
-                >
-                  Delete
-                </Button>
-              </TableCell>
+    <div className="max-w-5xl mx-auto py-6 px-2 sm:px-6 lg:px-8">
+      <h1 className="text-xl sm:text-2xl font-bold mb-4 sm:mb-6 text-center sm:text-left">Admin Dashboard - User Management</h1>
+      <div className="overflow-x-auto rounded-lg shadow-sm bg-white">
+        <Table className="min-w-full text-xs sm:text-sm">
+          <TableHeader>
+            <TableRow>
+              <TableHead>Name</TableHead>
+              <TableHead>Email/Token ID</TableHead>
+              <TableHead>Role</TableHead>
+              <TableHead>Actions</TableHead>
             </TableRow>
-          ))}
-        </TableBody>
-      </Table>
+          </TableHeader>
+          <TableBody>
+            {users.map((user: User) => (
+              <TableRow key={user._id}>
+                <TableCell className="whitespace-nowrap">{user.name}</TableCell>
+                <TableCell className="max-w-[120px] sm:max-w-xs truncate">{user.tokenIdentifier}</TableCell>
+                <TableCell>
+                  <Badge variant={user.role === "admin" ? "default" : "secondary"}>
+                    {user.role}
+                  </Badge>
+                </TableCell>
+                <TableCell>
+                  <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2">
+                    <Select
+                      value={user.role}
+                      onValueChange={(value) => handleUpdateRole(user._id, value as "user" | "admin")}
+                    >
+                      <SelectTrigger className="w-[90px] sm:w-[100px]">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="user">User</SelectItem>
+                        <SelectItem value="admin">Admin</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <Button
+                      variant="destructive"
+                      size="sm"
+                      className="ml-0 sm:ml-2"
+                      onClick={() => handleDeleteUser(user._id)}
+                    >
+                      Delete
+                    </Button>
+                  </div>
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </div>
     </div>
   );
 }

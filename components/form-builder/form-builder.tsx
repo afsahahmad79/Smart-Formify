@@ -1,4 +1,3 @@
-
 "use client"
 import { useState, useEffect, useCallback } from "react"
 import { FormElement } from "@/types/form";
@@ -359,43 +358,7 @@ export function FormBuilder() {
     }
   }
 
-  const handleGenerateForm = async () => {
-    if (!prompt.trim()) {
-      toast({
-        title: "Please enter a prompt",
-        variant: "destructive",
-      })
-      return
-    }
-
-    setIsGenerating(true)
-    try {
-      const generatedSchema = await generateForm({ prompt })
-      const newSchema = {
-        ...generatedSchema,
-        status: "draft",
-      } as FormSchema
-      setFormSchema(newSchema)
-
-      // Auto-save the generated form
-      await saveForm() // This will create it and update id, isNew, etc.
-
-      setShowAIGenerateDialog(false)
-      setPrompt("")
-      toast({
-        title: "Form generated and saved!",
-        description: "Your AI-generated form is ready and saved.",
-      })
-    } catch (error) {
-      toast({
-        title: "Failed to generate form",
-        description: error instanceof Error ? error.message : "Please try again or check your OpenAI API key.",
-        variant: "destructive",
-      })
-    } finally {
-      setIsGenerating(false)
-    }
-  }
+  
 
   const renderFormElement = (element: FormElement, index: number) => {
     const isSelected = selectedElement?.id === element.id
@@ -511,9 +474,9 @@ export function FormBuilder() {
       onDragStart={handleDragStart}
       onDragEnd={handleDragEnd}
     >
-      <div className="h-full flex">
+      <div className="h-full flex flex-col md:flex-row">
         {/* Form Element Palette */}
-        <div className="w-64 border-r border-border bg-sidebar">
+        <div className="w-full md:w-64 border-b md:border-b-0 md:border-r border-border bg-sidebar flex-shrink-0">
           <div className="p-4 border-b">
             <h3 className="font-semibold text-sidebar-foreground">Form Elements</h3>
             <p className="text-xs text-sidebar-foreground/70">Drag elements to build your form</p>
@@ -522,11 +485,11 @@ export function FormBuilder() {
         </div>
 
         {/* Form Canvas */}
-        <div className={`flex-1 flex flex-col ${showRealtimePreview ? "max-w-[50%]" : ""}`}>
+        <div className={`flex-1 flex flex-col ${showRealtimePreview ? "md:max-w-[50%]" : ""} p-2 md:p-6`}> {/* Responsive padding */}
           {/* Toolbar */}
-          <div className="flex items-center justify-between p-4 border-b bg-card">
-            <div className="flex items-center space-x-4">
-              <div>
+          <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-2 md:gap-0 p-2 md:p-4 border-b bg-card">
+            <div className="flex flex-col md:flex-row md:items-center md:space-x-4 w-full">
+              <div className="flex-1">
                 <Input
                   value={formSchema.title}
                   onChange={(e) => setFormSchema((prev) => {
@@ -555,13 +518,13 @@ export function FormBuilder() {
                 />
               </div>
               {formSchema.status === "published" && (
-                <div className="flex items-center space-x-2 text-sm">
+                <div className="flex items-center space-x-2 text-sm mt-2 md:mt-0">
                   <Globe className="h-4 w-4 text-green-600" />
                   <span className="text-green-600 font-medium">Published</span>
                 </div>
               )}
             </div>
-            <div className="flex items-center space-x-2">
+            <div className="flex flex-wrap items-center gap-2 mt-2 md:mt-0">
               <Button
                 variant="outline"
                 onClick={() => setShowRealtimePreview(!showRealtimePreview)}
@@ -608,7 +571,7 @@ export function FormBuilder() {
           </div>
 
           {/* Canvas Area */}
-          <div className="flex-1 p-6">
+          <div className="flex-1 p-2 md:p-6">
             <DroppableCanvas>
               {formSchema.elements.length === 0 ? (
                 <div className="text-center text-muted-foreground py-12">
@@ -625,7 +588,7 @@ export function FormBuilder() {
         </div>
 
         {showRealtimePreview && (
-          <div className="flex-1 border-l border-border bg-muted/30">
+          <div className="w-full md:w-[32%] border-t md:border-t-0 md:border-l border-border bg-muted/30 flex-shrink-0">
             <div className="p-4 border-b bg-card">
               <h3 className="font-semibold text-foreground">Live Preview</h3>
               <p className="text-xs text-muted-foreground">See your form as users will</p>
@@ -638,7 +601,7 @@ export function FormBuilder() {
 
         {/* Element Configuration Panel */}
         {selectedElement && (
-          <div className="w-80 border-l border-border bg-card">
+          <div className="w-full md:w-80 border-t md:border-t-0 md:border-l border-border bg-card flex-shrink-0">
             <FormElementConfig
               element={selectedElement}
               onUpdate={(updates) => updateElement(selectedElement.id, updates)}

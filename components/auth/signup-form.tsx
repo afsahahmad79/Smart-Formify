@@ -99,6 +99,8 @@ export function SignupForm({ onToggleMode }: SignupFormProps) {
         description: "Please check your inbox to verify your account.",
         variant: "default",
       })
+      // Redirect to login page after signup
+      onToggleMode()
     } catch (err: any) {
       console.error("Signup Error:", err)
       toast({
@@ -166,6 +168,7 @@ export function SignupForm({ onToggleMode }: SignupFormProps) {
               required
             />
           </div>
+          <div id="clerk-captcha"></div>
           <Button type="submit" className="w-full" disabled={loading}>
             {loading ? "Creating Account..." : "Create Account"}
           </Button>

@@ -182,31 +182,31 @@ export default function PublicFormPage() {
   }
 
   return (
-    <div className={`min-h-screen py-8 px-4 ${isEmbedded ? "bg-transparent" : "bg-background"}`}>
+    <div className={`min-h-screen py-4 sm:py-8 px-2 sm:px-4 ${isEmbedded ? "bg-transparent" : "bg-background"}`}>
       <div className="max-w-2xl mx-auto">
         <Card className="shadow-sm">
           <CardHeader>
-            <div className="flex items-center justify-between">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 sm:gap-0">
               <div>
-                <CardTitle className="text-2xl">{form.title}</CardTitle>
-                {form.description && <p className="text-muted-foreground mt-2">{form.description}</p>}
+                <CardTitle className="text-xl sm:text-2xl">{form.title}</CardTitle>
+                {form.description && <p className="text-xs sm:text-base text-muted-foreground mt-1 sm:mt-2">{form.description}</p>}
               </div>
               {!isEmbedded && (
-                <Badge variant="secondary" className="bg-green-100 text-green-800">
+                <Badge variant="secondary" className="bg-green-100 text-green-800 text-xs sm:text-sm px-2 py-1">
                   Live Form
                 </Badge>
               )}
             </div>
           </CardHeader>
           <CardContent>
-            <form onSubmit={handleSubmit} className="space-y-6">
+            <form onSubmit={handleSubmit} className="space-y-4 sm:space-y-6">
               {form.elements.map((element: FormElement) => {
                 const hasError = validationErrors[element.id]
                 const fieldValue = formData[element.id]
 
                 return (
-                  <div key={element.id} className="space-y-2">
-                    <Label htmlFor={element.id} className="flex items-center space-x-1">
+                  <div key={element.id} className="space-y-1 sm:space-y-2">
+                    <Label htmlFor={element.id} className="flex items-center space-x-1 text-sm sm:text-base">
                       <span>{element.label}</span>
                       {element.required && <span className="text-destructive">*</span>}
                     </Label>
@@ -267,7 +267,7 @@ export default function PublicFormPage() {
                     ) : null}
 
                     {hasError && (
-                      <div className="flex items-center space-x-1 text-sm text-destructive">
+                      <div className="flex items-center space-x-1 text-xs sm:text-sm text-destructive">
                         <AlertCircle className="h-3 w-3" />
                         <span>{hasError}</span>
                       </div>
@@ -276,7 +276,7 @@ export default function PublicFormPage() {
                 )
               })}
 
-              <Button type="submit" className="w-full" disabled={isSubmitting}>
+              <Button type="submit" className="w-full" size="lg" disabled={isSubmitting}>
                 {isSubmitting ? "Submitting..." : "Submit Form"}
               </Button>
             </form>
@@ -284,8 +284,8 @@ export default function PublicFormPage() {
         </Card>
 
         {!isEmbedded && (
-          <div className="text-center mt-6">
-            <p className="text-xs text-muted-foreground">
+          <div className="text-center mt-4 sm:mt-6">
+            <p className="text-xs sm:text-sm text-muted-foreground">
               Powered by <span className="font-semibold text-primary">FormCraft</span>
             </p>
           </div>

@@ -18,6 +18,7 @@ import {
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
+  
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import {
@@ -34,6 +35,8 @@ import {
   AlertCircle,
 } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
+import { useQuery } from "convex/react"
+import { api } from "../../convex/_generated/api"
 
 interface Submission {
   id: string
@@ -48,61 +51,11 @@ interface Submission {
   userAgent?: string
 }
 
-// Mock submissions data
-const mockSubmissions: Submission[] = [
-  {
-    id: "sub-001",
-    formId: "contact-form",
-    formName: "Contact Form",
-    submittedAt: "2024-01-15T14:30:00Z",
-    submitterEmail: "john.doe@example.com",
-    submitterName: "John Doe",
-    status: "new",
-    data: {
-      name: "John Doe",
-      email: "john.doe@example.com",
-      message: "I'm interested in your services. Please contact me.",
-      phone: "+1 (555) 123-4567",
-    },
-    ipAddress: "192.168.1.1",
-    userAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-  },
-  {
-    id: "sub-002",
-    formId: "survey-form",
-    formName: "Customer Survey",
-    submittedAt: "2024-01-15T12:15:00Z",
-    submitterEmail: "jane.smith@example.com",
-    submitterName: "Jane Smith",
-    status: "reviewed",
-    data: {
-      satisfaction: "Very Satisfied",
-      recommendation: "Yes",
-      feedback: "Great service and support!",
-      rating: "5",
-    },
-    ipAddress: "192.168.1.2",
-    userAgent: "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36",
-  },
-  {
-    id: "sub-003",
-    formId: "feedback-form",
-    formName: "Feedback Form",
-    submittedAt: "2024-01-14T16:45:00Z",
-    status: "new",
-    data: {
-      category: "Bug Report",
-      description: "The form validation is not working properly on mobile devices.",
-      priority: "High",
-      browser: "Safari",
-    },
-    ipAddress: "192.168.1.3",
-    userAgent: "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15",
-  },
-]
+// ...removed mockSubmissions...
 
 export function SubmissionsDashboard() {
-  const [submissions, setSubmissions] = useState<Submission[]>(mockSubmissions)
+  // Fetch real submissions from Convex
+  const submissions = useQuery((api as any).forms?.listSubmissions, {}) as Submission[] || []
   const [selectedSubmissions, setSelectedSubmissions] = useState<string[]>([])
   const [searchQuery, setSearchQuery] = useState("")
   const [statusFilter, setStatusFilter] = useState("all")
@@ -110,7 +63,7 @@ export function SubmissionsDashboard() {
   const [selectedSubmission, setSelectedSubmission] = useState<Submission | null>(null)
   const { toast } = useToast()
 
-  const filteredSubmissions = submissions.filter((submission) => {
+  const filteredSubmissions = submissions.filter((submission: Submission) => {
     const matchesSearch =
       searchQuery === "" ||
       submission.submitterName?.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -134,22 +87,22 @@ export function SubmissionsDashboard() {
 
   const handleSelectAll = (checked: boolean) => {
     if (checked) {
-      setSelectedSubmissions(filteredSubmissions.map((s) => s.id))
+      setSelectedSubmissions(filteredSubmissions.map((s: Submission) => s.id))
     } else {
       setSelectedSubmissions([])
     }
   }
 
+  // TODO: Implement backend update for status change
   const handleStatusChange = (submissionId: string, newStatus: Submission["status"]) => {
-    setSubmissions(submissions.map((s) => (s.id === submissionId ? { ...s, status: newStatus } : s)))
     toast({
       title: "Status updated",
       description: `Submission marked as ${newStatus}`,
     })
   }
 
+  // TODO: Implement backend update for bulk status change
   const handleBulkStatusChange = (newStatus: Submission["status"]) => {
-    setSubmissions(submissions.map((s) => (selectedSubmissions.includes(s.id) ? { ...s, status: newStatus } : s)))
     setSelectedSubmissions([])
     toast({
       title: "Bulk update completed",
@@ -157,16 +110,16 @@ export function SubmissionsDashboard() {
     })
   }
 
+  // TODO: Implement backend delete
   const handleDelete = (submissionId: string) => {
-    setSubmissions(submissions.filter((s) => s.id !== submissionId))
     toast({
       title: "Submission deleted",
       description: "The submission has been permanently deleted",
     })
   }
 
+  // TODO: Implement backend bulk delete
   const handleBulkDelete = () => {
-    setSubmissions(submissions.filter((s) => !selectedSubmissions.includes(s.id)))
     setSelectedSubmissions([])
     toast({
       title: "Submissions deleted",
@@ -175,7 +128,7 @@ export function SubmissionsDashboard() {
   }
 
   const exportSubmissions = (format: "csv" | "json") => {
-    const dataToExport = filteredSubmissions.map((submission) => ({
+    const dataToExport = filteredSubmissions.map((submission: Submission) => ({
       id: submission.id,
       form: submission.formName,
       submittedAt: submission.submittedAt,
@@ -189,7 +142,7 @@ export function SubmissionsDashboard() {
       const headers = Object.keys(dataToExport[0] || {})
       const csvContent = [
         headers.join(","),
-        ...dataToExport.map((row) => headers.map((header) => `"${(row as any)[header] || ""}"`).join(",")),
+        ...dataToExport.map((row: any) => headers.map((header) => `"${(row as any)[header] || ""}"`).join(",")),
       ].join("\n")
 
       const blob = new Blob([csvContent], { type: "text/csv" })
@@ -283,7 +236,7 @@ export function SubmissionsDashboard() {
             <AlertCircle className="h-4 w-4 text-blue-600" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{submissions.filter((s) => s.status === "new").length}</div>
+            <div className="text-2xl font-bold">{submissions.filter((s: Submission) => s.status === "new").length}</div>
           </CardContent>
         </Card>
         <Card>
@@ -292,7 +245,7 @@ export function SubmissionsDashboard() {
             <CheckCircle className="h-4 w-4 text-green-600" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{submissions.filter((s) => s.status === "reviewed").length}</div>
+            <div className="text-2xl font-bold">{submissions.filter((s: Submission) => s.status === "reviewed").length}</div>
           </CardContent>
         </Card>
         <Card>
@@ -301,7 +254,7 @@ export function SubmissionsDashboard() {
             <Clock className="h-4 w-4 text-gray-600" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{submissions.filter((s) => s.status === "archived").length}</div>
+            <div className="text-2xl font-bold">{submissions.filter((s: Submission) => s.status === "archived").length}</div>
           </CardContent>
         </Card>
       </div>
@@ -403,7 +356,7 @@ export function SubmissionsDashboard() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filteredSubmissions.map((submission) => (
+              {filteredSubmissions.map((submission: Submission) => (
                 <TableRow key={submission.id}>
                   <TableCell>
                     <Checkbox

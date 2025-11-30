@@ -41,7 +41,7 @@ export function LoginForm({ onToggleMode }: LoginFormProps) {
       // Step 1: Attempt sign-in
       const result = await signIn.create({
         identifier: email,
-        password,
+        password: password,
       })
 
       // Step 2: If sign-in is successful, activate session
