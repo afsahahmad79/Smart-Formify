@@ -172,41 +172,8 @@ export default function ContactPage() {
           </div>
         </div>
 
-        {/* FAQ Section */}
-        <div className="mt-16 sm:mt-20">
-          <h2 className="text-2xl sm:text-3xl font-bold text-center mb-8 sm:mb-12">Frequently Asked Questions</h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-4xl mx-auto">
-            <Card>
-              <CardContent className="p-6">
-                <h3 className="font-semibold text-base sm:text-lg mb-2">How do I get started with Smart Formify?</h3>
-                <p className="text-gray-600">
-                  Simply sign up for an account and you can start building forms immediately. 
-                  Our drag-and-drop interface makes it easy to create forms in minutes.
-                </p>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardContent className="p-6">
-                <h3 className="font-semibold text-base sm:text-lg mb-2">What types of forms can I create?</h3>
-                <p className="text-gray-600">
-                  You can create any type of form including surveys, contact forms, 
-                  registration forms, feedback forms, and more with various field types.
-                </p>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardContent className="p-6">
-                <h3 className="font-semibold text-base sm:text-lg mb-2">Can I integrate with other tools?</h3>
-                <p className="text-gray-600">
-                  Absolutely! Smart Formify integrates with popular tools like Zapier, 
-                  Slack, Google Sheets, and many more through our API.
-                </p>
-              </CardContent>
-            </Card>
-          </div>
-        </div>
+        
+         
       </div>
     </div>
   );

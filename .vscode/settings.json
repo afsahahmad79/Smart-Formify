@@ -11,5 +11,6 @@
     "**/convex/**/*.js": true,
     "**/convex/**/*.js.map": true,
     "**/convex/**/*.d.ts": true
-  }
+  },
+  "liveServer.settings.multiRootWorkspaceName": "smart-formify"
 }

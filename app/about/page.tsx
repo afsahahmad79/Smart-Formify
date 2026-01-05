@@ -23,29 +23,12 @@ export default function AboutPage() {
       color: "bg-green-500"
     },
     {
-      icon: Zap,
-      title: "Smart Integrations",
-      description: "Seamless connections with popular tools like Zapier, Slack, and Google Sheets.",
-      color: "bg-purple-500"
-    },
-    {
-      icon: Shield,
-      title: "Enterprise Security",
-      description: "Bank-level security with data encryption, GDPR compliance, and secure hosting.",
-      color: "bg-red-500"
-    },
-    {
       icon: Globe,
       title: "Multi-Platform Support",
       description: "Works seamlessly across all devices and browsers with responsive design.",
       color: "bg-indigo-500"
     },
-    {
-      icon: Lightbulb,
-      title: "AI-Powered Insights",
-      description: "Machine learning algorithms provide intelligent suggestions and optimization tips.",
-      color: "bg-yellow-500"
-    }
+    
   ];
 
   const stats = [
@@ -91,40 +74,7 @@ export default function AboutPage() {
           </p>
         </div>
 
-        {/* Mission & Vision */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 sm:gap-8 mb-10 sm:mb-16">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center space-x-2">
-                <Target className="h-6 w-6 text-blue-600" />
-                <span>Our Mission</span>
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-gray-600 text-sm sm:text-base">
-                To democratize data collection by providing powerful, yet simple tools that enable 
-                businesses of all sizes to gather insights, understand their audience, and make 
-                data-driven decisions without the complexity of traditional enterprise solutions.
-              </p>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center space-x-2">
-                <Lightbulb className="h-6 w-6 text-yellow-600" />
-                <span>Our Vision</span>
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-gray-600 text-sm sm:text-base">
-                To become the world's leading platform for intelligent form building, where 
-                anyone can create sophisticated data collection tools that adapt and learn 
-                from user behavior, providing unprecedented insights and automation.
-              </p>
-            </CardContent>
-          </Card>
-        </div>
+        
 
         {/* What We Do */}
         <div className="mb-10 sm:mb-16">
@@ -144,68 +94,7 @@ export default function AboutPage() {
           </div>
         </div>
 
-        {/* Team */}
-        <div className="mb-10 sm:mb-16">
-          <h2 className="text-2xl sm:text-3xl font-bold text-center mb-6 sm:mb-8">Meet Our Team</h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 sm:gap-8">
-            {team.map((member, index) => (
-              <Card key={index}>
-                <CardContent className="p-4 sm:p-6">
-                  <div className="flex items-center space-x-3 sm:space-x-4">
-                    <img
-                      src={member.image}
-                      alt={member.name}
-                      className="w-12 h-12 sm:w-16 sm:h-16 rounded-full object-cover"
-                    />
-                    <div>
-                      <h3 className="text-lg sm:text-xl font-semibold">{member.name}</h3>
-                      <p className="text-primary font-medium text-sm sm:text-base">{member.role}</p>
-                      <p className="text-gray-600 mt-1 sm:mt-2 text-xs sm:text-base">{member.bio}</p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        </div>
-
-        {/* Why Choose Us */}
-        <div className="mb-10 sm:mb-16">
-          <h2 className="text-2xl sm:text-3xl font-bold text-center mb-6 sm:mb-8">Why Choose Smart Formify?</h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 sm:gap-8">
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center space-x-2">
-                  <Users className="h-6 w-6 text-blue-600" />
-                  <span>User-Centric Design</span>
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-gray-600">
-                  Every feature is designed with the user in mind. We believe that powerful tools 
-                  should be easy to use, regardless of technical expertise. Our intuitive interface 
-                  makes form building accessible to everyone.
-                </p>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center space-x-2">
-                  <Zap className="h-6 w-6 text-yellow-600" />
-                  <span>Innovation First</span>
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-gray-600">
-                  We're constantly pushing the boundaries of what's possible in form building. 
-                  From AI-powered insights to real-time collaboration, we're always exploring 
-                  new ways to make your forms smarter and more effective.
-                </p>
-              </CardContent>
-            </Card>
-          </div>
-        </div>
+        
 
         {/* Call to Action */}
         <div className="text-center">

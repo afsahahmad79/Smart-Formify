@@ -136,28 +136,10 @@ export function RealtimePreview({ formSchema }: RealtimePreviewProps) {
           <Badge variant="secondary" className="text-xs">
             Live Preview
           </Badge>
-          <div className="flex items-center space-x-2 text-xs text-muted-foreground">
-            <span>
-              {filled}/{total} fields completed
-            </span>
-            {total > 0 && (
-              <div className="w-16 h-1 bg-muted rounded-full overflow-hidden">
-                <div
-                  className="progress-bar"
-                  style={{ width: `${progressPercentage}%` }}
-                />
-              </div>
-            )}
-          </div>
+          
         </div>
 
-        {submitSuccess && (
-          <div className="flex items-center space-x-2 text-sm text-green-600 bg-green-50 p-2 rounded-md">
-            <CheckCircle2 className="h-4 w-4" />
-            <span>Form submitted successfully!</span>
-          </div>
-        )}
-      </div>
+        </div>
 
       {/* Form Preview */}
       <Card className="shadow-sm">
@@ -248,11 +230,7 @@ export function RealtimePreview({ formSchema }: RealtimePreviewProps) {
                 )
               })}
 
-              {formSchema.elements.length > 0 && (
-                <Button type="submit" className="w-full mt-6" disabled={isSubmitting}>
-                  {isSubmitting ? "Submitting..." : "Submit Form"}
-                </Button>
-              )}
+              
             </form>
           )}
         </CardContent>

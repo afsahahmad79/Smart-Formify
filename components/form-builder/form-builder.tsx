@@ -2,7 +2,7 @@
 import { useState, useEffect, useCallback } from "react"
 import { FormElement } from "@/types/form";
 import { Integration } from "@/types/integration";
-import { useAction, useMutation } from "convex/react";
+import { useAction, useMutation, useQuery } from "convex/react";
 import type { Id } from "../../convex/_generated/dataModel";
 import { api } from "../../convex/_generated/api";
 import { DndContext, closestCenter, DragEndEvent, DragStartEvent, DragOverlay, useDroppable } from "@dnd-kit/core"
@@ -32,6 +32,9 @@ import { PublishDialog } from "./publish-dialog"
 import { IntegrationsManager } from "../integrations/integrations-manager"
 import { Badge } from "@/components/ui/badge"
 import { useToast } from "@/hooks/use-toast"
+import { useAuth } from "@/components/auth/auth-context"
+import { useUser, useSession } from "@clerk/nextjs"
+import { copyToClipboard } from "@/lib/clipboard"
 
 export type FormSchema = {
   id: string
@@ -64,8 +67,11 @@ function DroppableCanvas({ children }: { children: React.ReactNode }) {
   )
 }
 
-
 export function FormBuilder() {
+  const { user, loading } = useAuth();
+  const { user: clerkUser, isSignedIn, isLoaded: clerkLoaded } = useUser();
+  const { session, isLoaded: sessionLoaded } = useSession();
+  
   const [formId, setFormId] = useState<Id<"forms"> | null>(null);
   const [isNew, setIsNew] = useState(true);
   const [formSchema, setFormSchema] = useState<FormSchema>({
@@ -97,14 +103,57 @@ export function FormBuilder() {
   const updateForm = useMutation(api.forms.mutations.updateForm)
   const publishForm = useMutation(api.forms.mutations.publishForm)
   const unpublishForm = useMutation(api.forms.mutations.unpublishForm)
+  
+  // Test query to verify Convex authentication is working
+  const getCurrentUser = useQuery(api.users.queries.getCurrent)
 
-  // Memory optimization: cleanup on unmount
+  // Debug: Log authentication state
   useEffect(() => {
-    return () => {
-      // Clear any pending timeouts or intervals
-      setFormSchema(prev => ({ ...prev, elements: [] }));
-    };
-  }, []);
+    console.log("🔐 Authentication Debug:", {
+      "Clerk User": clerkUser ? "✅ Present" : "❌ Missing",
+      "Is Signed In": isSignedIn,
+      "Clerk Session": session ? "✅ Present" : "❌ Missing",
+      "Session ID": session?.id,
+      "Convex User": getCurrentUser ? "✅ Present" : "❌ Missing",
+      "Custom Auth User": user ? "✅ Present" : "❌ Missing",
+    });
+    
+    if (isSignedIn && clerkUser && !session) {
+      console.error("❌ CRITICAL: Clerk user is signed in but NO SESSION exists!");
+      console.error("This means Clerk authentication is broken. Try:");
+      console.error("1. Check Clerk dashboard for correct keys");
+      console.error("2. Verify NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY is set");
+      console.error("3. Check browser network tab for Clerk API calls");
+    }
+  }, [clerkUser, isSignedIn, session, getCurrentUser, user]);
+  
+  // Show loading state while checking authentication
+  if (loading || !clerkLoaded || !sessionLoaded) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <p className="text-lg">Loading...</p>
+      </div>
+    );
+  }
+
+  // Require authentication to use form builder - check both auth systems
+  if (!user || !isSignedIn || !clerkUser || !session) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-screen p-6">
+        <div className="text-center max-w-md">
+          <h2 className="text-2xl font-semibold mb-4">Authentication Required</h2>
+          <p className="text-muted-foreground mb-6">
+            Please sign in to create and manage forms.
+          </p>
+          <a href="/auth/sign-in">
+            <Button className="bg-primary text-primary-foreground px-6 py-2">
+              Sign In
+            </Button>
+          </a>
+        </div>
+      </div>
+    );
+  }
 
   const handleDragStart = (event: DragStartEvent) => {
     setActiveId(event.active.id as string)
@@ -209,7 +258,17 @@ export function FormBuilder() {
     setSelectedElementId(null)
   }
 
-  const handlePublishForm = async (settings: { allowAnonymous: boolean; collectEmails: boolean }) => {
+  const handlePublishForm = async (settings: { allowAnonymous: boolean; collectEmails: boolean; shareUrl?: string; embedCode?: string }) => {
+    // Check authentication before publishing - verify both auth systems
+    if (!user || !isSignedIn || !clerkUser || !session) {
+      toast({
+        title: "Authentication required",
+        description: "Please sign in to publish forms. Your session may have expired.",
+        variant: "destructive",
+      })
+      return
+    }
+
     if (formSchema.elements.length === 0) {
       toast({
         title: "Cannot publish empty form",
@@ -223,35 +282,57 @@ export function FormBuilder() {
       let currentFormId = formId
       if (isNew) {
         // Save first if new
-        const newId = await createForm({
-          title: formSchema.title,
-          description: formSchema.description,
-          elements: formSchema.elements,
-        }) as Id<"forms">
-        currentFormId = newId
-        setFormId(newId)
-        setIsNew(false)
-        setFormSchema(prev => ({ ...prev, id: newId }))
-        toast({
-          title: "Form saved",
-          description: "Form created and ready to publish",
-        })
+        try {
+          const newId = await createForm({
+            title: formSchema.title,
+            description: formSchema.description,
+            elements: formSchema.elements,
+          }) as Id<"forms">
+          currentFormId = newId
+          setFormId(newId)
+          setIsNew(false)
+          setFormSchema(prev => ({ ...prev, id: newId }))
+          toast({
+            title: "Form saved",
+            description: "Form created and ready to publish",
+          })
+        } catch (createError: any) {
+          const errorMsg = createError?.message || String(createError);
+          if (errorMsg.includes("Not authenticated") || errorMsg.includes("authentication")) {
+            toast({
+              title: "Authentication Error",
+              description: "Your session expired. Please sign in again and try publishing.",
+              variant: "destructive",
+            })
+            return
+          }
+          throw createError
+        }
       }
 
       // Publish
-      await publishForm({ id: currentFormId! })
+      try {
+        // Generate share URL and embed code (use provided ones or generate new)
+        const shareUrl = settings.shareUrl || `${window.location.origin}/forms/${currentFormId}`
+        const embedCode = settings.embedCode || `<iframe src="${shareUrl}?embed=true" width="100%" height="600" frameborder="0"></iframe>`
 
-      // Generate share URL and embed code
-      const shareUrl = `${window.location.origin}/forms/${currentFormId}`
-      const embedCode = `<iframe src="${shareUrl}?embed=true" width="100%" height="600" frameborder="0"></iframe>`
+        await publishForm({ 
+          id: currentFormId!,
+          shareUrl,
+          embedCode,
+          allowAnonymous: settings.allowAnonymous,
+          collectEmails: settings.collectEmails,
+        })
 
-      setFormSchema((prev) => ({
-        ...prev,
-        status: "published",
-        publishedAt: Date.now(),
-        shareUrl,
-        embedCode,
-      }))
+        setFormSchema((prev) => ({
+          ...prev,
+          status: "published",
+          publishedAt: Date.now(),
+          shareUrl,
+          embedCode,
+          allowAnonymous: settings.allowAnonymous,
+          collectEmails: settings.collectEmails,
+        }))
 
       toast({
         title: "Form published successfully!",
@@ -259,12 +340,37 @@ export function FormBuilder() {
       })
 
       setShowPublishDialog(false)
-    } catch (error) {
-      toast({
-        title: "Failed to publish form",
-        description: error instanceof Error ? error.message : "An error occurred",
-        variant: "destructive",
-      })
+      } catch (error: any) {
+        const errorMsg = error?.message || String(error);
+        if (errorMsg.includes("Not authenticated") || errorMsg.includes("authentication")) {
+          toast({
+            title: "Authentication Error",
+            description: "Your session expired. Please sign in again and try publishing.",
+            variant: "destructive",
+          })
+        } else {
+          toast({
+            title: "Failed to publish form",
+            description: error instanceof Error ? error.message : "An error occurred",
+            variant: "destructive",
+          })
+        }
+      }
+    } catch (error: any) {
+      const errorMsg = error?.message || String(error);
+      if (errorMsg.includes("Not authenticated") || errorMsg.includes("authentication")) {
+        toast({
+          title: "Authentication Error",
+          description: "Your session expired. Please sign in again and try publishing.",
+          variant: "destructive",
+        })
+      } else {
+        toast({
+          title: "Failed to publish form",
+          description: error instanceof Error ? error.message : "An error occurred",
+          variant: "destructive",
+        })
+      }
     }
   }
 
@@ -298,27 +404,53 @@ export function FormBuilder() {
     }
   }
 
-  const copyShareUrl = () => {
+  const copyShareUrl = async () => {
     if (formSchema.shareUrl) {
-      navigator.clipboard.writeText(formSchema.shareUrl)
-      toast({
-        title: "Link copied!",
-        description: "Share URL has been copied to clipboard",
-      })
+      const success = await copyToClipboard(formSchema.shareUrl)
+      if (success) {
+        toast({
+          title: "Link copied!",
+          description: "Share URL has been copied to clipboard",
+        })
+      } else {
+        toast({
+          title: "Failed to copy",
+          description: "Copy to clipboard is not supported in this browser. Please copy the link manually.",
+          variant: "destructive",
+        })
+      }
     }
   }
 
-  const copyEmbedCode = () => {
+  const copyEmbedCode = async () => {
     if (formSchema.embedCode) {
-      navigator.clipboard.writeText(formSchema.embedCode)
-      toast({
-        title: "Embed code copied!",
-        description: "Embed code has been copied to clipboard",
-      })
+      const success = await copyToClipboard(formSchema.embedCode)
+      if (success) {
+        toast({
+          title: "Embed code copied!",
+          description: "Embed code has been copied to clipboard",
+        })
+      } else {
+        toast({
+          title: "Failed to copy",
+          description: "Copy to clipboard is not supported in this browser. Please copy the code manually.",
+          variant: "destructive",
+        })
+      }
     }
   }
 
   const saveForm = async () => {
+    // Check authentication before saving - verify both auth systems
+    if (!user || !isSignedIn || !clerkUser || !session) {
+      toast({
+        title: "Authentication required",
+        description: "Please sign in to save forms. Your session may have expired.",
+        variant: "destructive",
+      })
+      return
+    }
+
     if (formSchema.elements.length === 0 && formSchema.title === "Untitled Form") {
       toast({
         title: "Empty form",
@@ -349,12 +481,21 @@ export function FormBuilder() {
           description: "Your changes have been saved",
         })
       }
-    } catch (error) {
-      toast({
-        title: "Failed to save form",
-        description: error instanceof Error ? error.message : "An error occurred",
-        variant: "destructive",
-      })
+    } catch (error: any) {
+      const errorMsg = error?.message || String(error);
+      if (errorMsg.includes("Not authenticated") || errorMsg.includes("authentication")) {
+        toast({
+          title: "Authentication Error",
+          description: "Your session expired. Please sign in again and try saving.",
+          variant: "destructive",
+        })
+      } else {
+        toast({
+          title: "Failed to save form",
+          description: error instanceof Error ? error.message : "An error occurred",
+          variant: "destructive",
+        })
+      }
     }
   }
 
@@ -615,12 +756,8 @@ export function FormBuilder() {
           open={showPublishDialog}
           onOpenChange={setShowPublishDialog}
           formSchema={formSchema}
-          onPublish={handlePublishForm}
-          onCopyLink={copyShareUrl}
-          onCopyEmbed={copyEmbedCode}
+          // onPublish={handlePublishForm}
         />
-
-        {/* Note: Add OPENAI_API_KEY to your .env.local file */}
       </div>
     </DndContext>
   )

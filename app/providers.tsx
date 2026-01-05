@@ -10,7 +10,8 @@ import { useAuth } from "@clerk/nextjs";
 
 
 import { AuthProvider } from "@/components/auth/auth-context";
-import { ChatWidget } from "@/components/chat-widget";
+import "../components/errors/intercept-console-error";
+import { ErrorBoundary } from "@/components/errors/error-boundary";
 
 const convex = new ConvexReactClient(process.env.NEXT_PUBLIC_CONVEX_URL!);
 
@@ -39,10 +40,11 @@ export function Providers({ children }: { children: React.ReactNode }) {
       afterSignUpUrl="/dashboard"
     >
       {/* Convex + Clerk Integration */}
-      <ConvexProviderWithClerk client={convex}useAuth={useAuth}>
+      <ConvexProviderWithClerk client={convex} useAuth={useAuth}>
         <AuthProvider>
-          {children}
-          <ChatWidget />
+          <ErrorBoundary>
+            {children}
+          </ErrorBoundary>
         </AuthProvider>
       </ConvexProviderWithClerk>
     </ClerkProvider>

@@ -16,63 +16,35 @@ import { Badge } from "@/components/ui/badge"
 import { CheckCircle2, AlertCircle } from "lucide-react"
 import type { FormSchema } from "@/types/form"
 import type { FormElement } from "@/types/form"
+import { useUser } from "@clerk/nextjs"
+import { useAuth } from "@/components/auth/auth-context"
+import { useQuery } from "convex/react"
+import { api } from "../../convex/_generated/api"
+import type { Id } from "../../convex/_generated/dataModel"
 
-// Mock form data - in a real app, this would come from your database
-const mockForms: Record<string, FormSchema> = {
-  "new-form": {
-    id: "new-form",
-    title: "Contact Us",
-    description: "Get in touch with our team",
-    status: "published",
-    publishedAt: new Date("2024-01-15T10:00:00Z").getTime(),
-    shareUrl: "/forms/new-form",
-    elements: [
-      {
-        id: "name",
-        type: "text",
-        label: "Full Name",
-        placeholder: "Enter your full name",
-        required: true,
-      },
-      {
-        id: "email",
-        type: "email",
-        label: "Email Address",
-        placeholder: "Enter your email",
-        required: true,
-      },
-      {
-        id: "message",
-        type: "textarea",
-        label: "Message",
-        placeholder: "Tell us how we can help",
-        required: true,
-      },
-    ],
-  },
-}
+
 
 export default function PublicFormPage() {
   const params = useParams()
   const formId = params.id as string
-  const [form, setForm] = useState<FormSchema | null>(null)
+  // Fetch the real form from Convex
+  const form = useQuery(api.forms.queries.getPublishedForm, { id: formId as Id<"forms"> })
   const [formData, setFormData] = useState<Record<string, any>>({})
   const [validationErrors, setValidationErrors] = useState<Record<string, string>>({})
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [submitSuccess, setSubmitSuccess] = useState(false)
   const [isEmbedded, setIsEmbedded] = useState(false)
+  const [submitterEmail, setSubmitterEmail] = useState("")
+
+  // Authentication
+  const { user: clerkUser, isSignedIn } = useUser()
+  const { user: customUser } = useAuth()
 
   useEffect(() => {
     // Check if this is an embedded form
     const urlParams = new URLSearchParams(window.location.search)
     setIsEmbedded(urlParams.get("embed") === "true")
-
-    // Load form data (in a real app, fetch from API)
-    const formData = mockForms[formId]
-    if (formData && formData.status === "published") {
-      setForm(formData)
-    }
-  }, [formId])
+  }, [])
 
   const validateField = (element: FormElement, value: any): string | null => {
     if (element.required && (!value || (typeof value === "string" && value.trim() === ""))) {
@@ -118,6 +90,9 @@ export default function PublicFormPage() {
     }
   }
 
+  // Use Convex mutation for real submissions
+  const submitForm = useMutation(api["forms/submissions"].submitForm)
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!form) return
@@ -126,20 +101,36 @@ export default function PublicFormPage() {
 
     // Validate all fields
     const errors: Record<string, string> = {}
-    form.elements.forEach((element) => {
-      const error = validateField(element, formData[element.id])
-      if (error) {
-        errors[element.id] = error
-      }
-    })
+    form.elements.forEach((element: FormElement) => {
+          const error = validateField(element, formData[element.id])
+          if (error) {
+            errors[element.id] = error
+          }
+        })
 
     setValidationErrors(errors)
 
+
     if (Object.keys(errors).length === 0) {
-      // Simulate API call
-      await new Promise((resolve) => setTimeout(resolve, 1500))
-      setSubmitSuccess(true)
-      console.log("Form submitted:", { formId, data: formData })
+      // Validate email if required
+      if (form.collectEmails && !submitterEmail.trim()) {
+        setValidationErrors({ email: "Email is required" })
+        setIsSubmitting(false)
+        return
+      }
+
+      // Save submission to backend
+      try {
+        await submitForm({
+          formId,
+          data: formData,
+          submitterEmail: form.collectEmails ? submitterEmail : undefined,
+        })
+        setSubmitSuccess(true)
+      } catch (err) {
+        // Optionally show error toast
+        console.error("Submission error:", err)
+      }
     }
 
     setIsSubmitting(false)
@@ -156,6 +147,30 @@ export default function PublicFormPage() {
               <AlertCircle className="h-12 w-12 mx-auto mb-4" />
               <h2 className="text-lg font-semibold mb-2">Form Not Found</h2>
               <p className="text-sm">This form may have been unpublished or doesn't exist.</p>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    )
+  }
+
+  // Check if authentication is required
+  if (!form.allowAnonymous && !isSignedIn && !customUser) {
+    return (
+      <div
+        className={`min-h-screen flex items-center justify-center ${isEmbedded ? "bg-transparent" : "bg-background"}`}
+      >
+        <Card className="w-full max-w-md">
+          <CardContent className="pt-6">
+            <div className="text-center">
+              <AlertCircle className="h-12 w-12 mx-auto mb-4 text-orange-500" />
+              <h2 className="text-lg font-semibold mb-2">Authentication Required</h2>
+              <p className="text-sm text-muted-foreground mb-4">
+                This form requires you to sign in to submit responses.
+              </p>
+              <a href="/auth/sign-in">
+                <Button>Sign In</Button>
+              </a>
             </div>
           </CardContent>
         </Card>
@@ -200,6 +215,28 @@ export default function PublicFormPage() {
           </CardHeader>
           <CardContent>
             <form onSubmit={handleSubmit} className="space-y-4 sm:space-y-6">
+              {/* Email collection field if required */}
+              {form.collectEmails && (
+                <div className="space-y-1 sm:space-y-2">
+                  <Label htmlFor="submitterEmail" className="flex items-center space-x-1 text-sm sm:text-base">
+                    <span>Email Address</span>
+                    <span className="text-destructive">*</span>
+                  </Label>
+                  <Input
+                    id="submitterEmail"
+                    type="email"
+                    placeholder="Enter your email address"
+                    value={submitterEmail}
+                    onChange={(e) => setSubmitterEmail(e.target.value)}
+                    className={validationErrors.email ? "border-destructive focus-visible:ring-destructive" : ""}
+                    required
+                  />
+                  {validationErrors.email && (
+                    <p className="text-sm text-destructive">{validationErrors.email}</p>
+                  )}
+                </div>
+              )}
+
               {form.elements.map((element: FormElement) => {
                 const hasError = validationErrors[element.id]
                 const fieldValue = formData[element.id]

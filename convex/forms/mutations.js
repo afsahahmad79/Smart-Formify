@@ -90,7 +90,13 @@ export const updateForm = mutation({
 });
 
 export const publishForm = mutation({
-  args: { id: v.id("forms") },
+  args: { 
+    id: v.id("forms"),
+    shareUrl: v.string(),
+    embedCode: v.string(),
+    allowAnonymous: v.boolean(),
+    collectEmails: v.boolean(),
+  },
   handler: async (ctx, args) => {
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) {
@@ -109,6 +115,10 @@ export const publishForm = mutation({
     await ctx.db.patch(args.id, {
       status: "published",
       publishedAt: Date.now(),
+      shareUrl: args.shareUrl,
+      embedCode: args.embedCode,
+      allowAnonymous: args.allowAnonymous,
+      collectEmails: args.collectEmails,
       updatedAt: Date.now(),
     });
   },

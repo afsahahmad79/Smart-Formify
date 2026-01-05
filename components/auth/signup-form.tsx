@@ -86,21 +86,45 @@ export function SignupForm({ onToggleMode }: SignupFormProps) {
       setLoading(true)
 
       // Step 1: Create Clerk sign-up
-      await signUp.create({
+      const signUpResult = await signUp.create({
         emailAddress: email,
         password: password,
+        firstName: name,
       })
 
-      // Step 2: Prepare email verification
-      await signUp.prepareEmailAddressVerification({ strategy: "email_code" })
-
-      toast({
-        title: "Verification Email Sent",
-        description: "Please check your inbox to verify your account.",
-        variant: "default",
-      })
-      // Redirect to login page after signup
-      onToggleMode()
+      // Step 2: Check if email verification is required
+      if (signUpResult.status === "missing_requirements") {
+        // If email verification is required, prepare it
+        await signUp.prepareEmailAddressVerification({ strategy: "email_code" })
+        toast({
+          title: "Verification Email Sent",
+          description: "Please check your inbox to verify your account. You must verify before signing in.",
+          variant: "default",
+        })
+        // Don't redirect - let user know they need to verify
+      } else if (signUpResult.status === "complete") {
+        // Account created and verified immediately (if email verification is disabled)
+        await setActive({ session: signUpResult.createdSessionId })
+        toast({
+          title: "Account Created Successfully!",
+          description: "Redirecting to dashboard...",
+          variant: "default",
+        })
+        setTimeout(() => {
+          window.location.href = "/dashboard"
+        }, 1000)
+      } else {
+        toast({
+          title: "Account Created",
+          description: "Please check your email to verify your account before signing in.",
+          variant: "default",
+        })
+      }
+      
+      // Only redirect to login if verification is required
+      if (signUpResult.status === "missing_requirements") {
+        onToggleMode()
+      }
     } catch (err: any) {
       console.error("Signup Error:", err)
       toast({

@@ -12,6 +12,8 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { api } from "../../convex/_generated/api";
+
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -36,16 +38,15 @@ import {
 } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 import { useQuery } from "convex/react"
-import { api } from "../../convex/_generated/api"
 
 interface Submission {
   id: string
   formId: string
   formName: string
-  submittedAt: string
+  submittedAt: number
   submitterEmail?: string
   submitterName?: string
-  status: "new" | "reviewed" | "archived"
+  status: string // Accept any string from backend
   data: Record<string, any>
   ipAddress?: string
   userAgent?: string
@@ -55,7 +56,7 @@ interface Submission {
 
 export function SubmissionsDashboard() {
   // Fetch real submissions from Convex
-  const submissions = useQuery((api as any).forms?.listSubmissions, {}) as Submission[] || []
+  const submissions = useQuery(api.forms.listSubmissions.listSubmissions, {}) ?? [];
   const [selectedSubmissions, setSelectedSubmissions] = useState<string[]>([])
   const [searchQuery, setSearchQuery] = useState("")
   const [statusFilter, setStatusFilter] = useState("all")
@@ -63,7 +64,7 @@ export function SubmissionsDashboard() {
   const [selectedSubmission, setSelectedSubmission] = useState<Submission | null>(null)
   const { toast } = useToast()
 
-  const filteredSubmissions = submissions.filter((submission: Submission) => {
+  const filteredSubmissions = (submissions as Submission[]).filter((submission) => {
     const matchesSearch =
       searchQuery === "" ||
       submission.submitterName?.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -87,7 +88,7 @@ export function SubmissionsDashboard() {
 
   const handleSelectAll = (checked: boolean) => {
     if (checked) {
-      setSelectedSubmissions(filteredSubmissions.map((s: Submission) => s.id))
+      setSelectedSubmissions(filteredSubmissions.map((s) => s.id))
     } else {
       setSelectedSubmissions([])
     }
@@ -128,10 +129,10 @@ export function SubmissionsDashboard() {
   }
 
   const exportSubmissions = (format: "csv" | "json") => {
-    const dataToExport = filteredSubmissions.map((submission: Submission) => ({
+    const dataToExport = filteredSubmissions.map((submission) => ({
       id: submission.id,
       form: submission.formName,
-      submittedAt: submission.submittedAt,
+      submittedAt: new Date(submission.submittedAt).toLocaleString(),
       status: submission.status,
       submitterEmail: submission.submitterEmail || "Anonymous",
       submitterName: submission.submitterName || "Anonymous",
@@ -189,8 +190,8 @@ export function SubmissionsDashboard() {
     }
   }
 
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleString()
+  const formatDate = (dateValue: number) => {
+    return new Date(dateValue).toLocaleString()
   }
 
   return (
@@ -236,7 +237,7 @@ export function SubmissionsDashboard() {
             <AlertCircle className="h-4 w-4 text-blue-600" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{submissions.filter((s: Submission) => s.status === "new").length}</div>
+            <div className="text-2xl font-bold">{(submissions as Submission[]).filter((s) => s.status === "new").length}</div>
           </CardContent>
         </Card>
         <Card>
@@ -245,7 +246,7 @@ export function SubmissionsDashboard() {
             <CheckCircle className="h-4 w-4 text-green-600" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{submissions.filter((s: Submission) => s.status === "reviewed").length}</div>
+            <div className="text-2xl font-bold">{(submissions as Submission[]).filter((s) => s.status === "reviewed").length}</div>
           </CardContent>
         </Card>
         <Card>
@@ -254,7 +255,7 @@ export function SubmissionsDashboard() {
             <Clock className="h-4 w-4 text-gray-600" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{submissions.filter((s: Submission) => s.status === "archived").length}</div>
+            <div className="text-2xl font-bold">{(submissions as Submission[]).filter((s) => s.status === "archived").length}</div>
           </CardContent>
         </Card>
       </div>
@@ -356,7 +357,7 @@ export function SubmissionsDashboard() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filteredSubmissions.map((submission: Submission) => (
+              {(filteredSubmissions as Submission[]).map((submission) => (
                 <TableRow key={submission.id}>
                   <TableCell>
                     <Checkbox

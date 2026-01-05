@@ -21,4 +21,6 @@ export interface FormSchema {
   publishedAt?: number
   shareUrl?: string
   embedCode?: string
+  allowAnonymous?: boolean
+  collectEmails?: boolean
 }

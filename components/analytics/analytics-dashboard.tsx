@@ -194,17 +194,23 @@ export function DashboardLayout() {
     </div>
   );
 
-function DashboardStats() {
-  // useQuery requires both the query function and arguments (can be empty object if none required)
-  const stats = useQuery(api.analytics.getSubmissionStats, {});
-
-  if (!stats) return <div>Loading stats…</div>;
-
-  return (
-      <div>
-        <h3>Live Analytics</h3>
-        <div>Total submissions: {stats.overview.totalSubmissions}</div>        {/* Add more analytics as you code them! */}
-      </div>
+  function DashboardStats() {
+    const stats = useQuery(api.analytics.getSubmissionStats);
+  
+    if (stats === undefined) {
+      return <div>Loading analytics…</div>;
+    }
+  
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle>Analytics Overview</CardTitle>
+          <CardDescription>Live form performance</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-2">
+          <div>Total Submissions: {stats.overview.totalSubmissions}</div>
+        </CardContent>
+      </Card>
     );
-  }  
-}
+  }
+}   

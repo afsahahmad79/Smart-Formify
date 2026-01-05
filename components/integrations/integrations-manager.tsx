@@ -29,6 +29,7 @@ import {
   ExternalLink,
 } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
+import { copyToClipboard } from "@/lib/clipboard"
 
 import { GoogleSheetsManager } from "./google-sheets-manager"
 import { Integration } from "@/types/integration"
@@ -154,13 +155,21 @@ export function IntegrationsManager({ formId, integrations, onUpdateIntegrations
     }
   }
 
-  const copyWebhookUrl = (integration: Integration) => {
+  const copyWebhookUrl = async (integration: Integration) => {
     if (integration.config.url) {
-      navigator.clipboard.writeText(integration.config.url)
-      toast({
-        title: "URL copied",
-        description: "Webhook URL has been copied to clipboard",
-      })
+      const success = await copyToClipboard(integration.config.url)
+      if (success) {
+        toast({
+          title: "URL copied",
+          description: "Webhook URL has been copied to clipboard",
+        })
+      } else {
+        toast({
+          title: "Failed to copy",
+          description: "Copy to clipboard is not supported in this browser. Please copy the URL manually.",
+          variant: "destructive",
+        })
+      }
     }
   }
 

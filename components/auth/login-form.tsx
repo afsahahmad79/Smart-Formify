@@ -44,7 +44,7 @@ export function LoginForm({ onToggleMode }: LoginFormProps) {
         password: password,
       })
 
-      // Step 2: If sign-in is successful, activate session
+      // Step 2: Handle different sign-in statuses
       if (result.status === "complete") {
         await setActive({ session: result.createdSessionId })
         toast({
@@ -52,9 +52,27 @@ export function LoginForm({ onToggleMode }: LoginFormProps) {
           description: "Redirecting to your dashboard...",
           variant: "default",
         })
-        router.push("/dashboard") // or your app's dashboard path
+        router.push("/dashboard")
+      
+      } else if (result.status === "needs_identifier") {
+        toast({
+          title: "Sign-in Incomplete",
+          description: "Please provide your email address.",
+          variant: "destructive",
+        })
+      } else if (result.status === "needs_new_password") {
+        toast({
+          title: "Password Reset Required",
+          description: "Please set a new password to continue.",
+          variant: "destructive",
+        })
       } else {
-        console.log("Sign-in response:", result)
+        console.log("Sign-in response status:", result.status)
+        toast({
+          title: "Sign-in Incomplete",
+          description: `Sign-in status: ${result.status}. Please try again.`,
+          variant: "destructive",
+        })
       }
     } catch (err: any) {
       console.error("Login Error:", err)
