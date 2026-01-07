@@ -3,7 +3,6 @@
 import type React from "react"
 
 import { useState, useEffect } from "react"
-import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
@@ -12,7 +11,7 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { AlertCircle, CheckCircle2 } from "lucide-react"
+import { AlertCircle } from "lucide-react"
 import type { FormSchema } from "@/types/form"
 
 interface RealtimePreviewProps {
@@ -22,7 +21,6 @@ interface RealtimePreviewProps {
 export function RealtimePreview({ formSchema }: RealtimePreviewProps) {
   const [formData, setFormData] = useState<Record<string, any>>({})
   const [validationErrors, setValidationErrors] = useState<Record<string, string>>({})
-  const [isSubmitting, setIsSubmitting] = useState(false)
   const [submitSuccess, setSubmitSuccess] = useState(false)
 
   // Reset form data when schema changes significantly
@@ -60,7 +58,7 @@ export function RealtimePreview({ formSchema }: RealtimePreviewProps) {
           if (!regex.test(value)) {
             return `${element.label} format is invalid`
           }
-        } catch (e) {
+        } catch {
           // Invalid regex pattern
         }
       }
@@ -93,7 +91,6 @@ export function RealtimePreview({ formSchema }: RealtimePreviewProps) {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    setIsSubmitting(true)
 
     // Validate all fields
     const errors: Record<string, string> = {}
@@ -112,8 +109,6 @@ export function RealtimePreview({ formSchema }: RealtimePreviewProps) {
       setSubmitSuccess(true)
       console.log("Form submitted:", formData)
     }
-
-    setIsSubmitting(false)
   }
 
   const getFieldCount = () => {
@@ -126,7 +121,6 @@ export function RealtimePreview({ formSchema }: RealtimePreviewProps) {
   }
 
   const { filled, total } = getFieldCount()
-  const progressPercentage = total > 0 ? (filled / total) * 100 : 0
 
   return (
     <div className="p-6 space-y-6">
@@ -136,10 +130,10 @@ export function RealtimePreview({ formSchema }: RealtimePreviewProps) {
           <Badge variant="secondary" className="text-xs">
             Live Preview
           </Badge>
-          
-        </div>
 
         </div>
+
+      </div>
 
       {/* Form Preview */}
       <Card className="shadow-sm">
@@ -230,7 +224,7 @@ export function RealtimePreview({ formSchema }: RealtimePreviewProps) {
                 )
               })}
 
-              
+
             </form>
           )}
         </CardContent>

@@ -3,16 +3,16 @@
 import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { useAuth } from "@/components/auth/auth-context"
+import { useUser } from "@clerk/nextjs"
 import { LogoutDialog } from "@/components/auth/logout-dialog"
 import { PlusCircle, FileText, BarChart3, Settings, LogOut, Inbox } from "lucide-react"
-import {FormBuilder} from "@/components/form-builder/form-builder"
+import { FormBuilder } from "@/components/form-builder/form-builder"
 import { SubmissionsDashboard } from "@/components/submissions/submissions-dashboard"
 import { useQuery } from "convex/react"
 import { api } from "../../convex/_generated/api"
 
 export function DashboardLayout() {
-  const { user } = useAuth()
+  const { user } = useUser()
   const [activeTab, setActiveTab] = useState("forms")
   const [showFormBuilder, setShowFormBuilder] = useState(false)
   const [showLogoutDialog, setShowLogoutDialog] = useState(false)
@@ -26,11 +26,11 @@ export function DashboardLayout() {
               <Button variant="ghost" onClick={() => setShowFormBuilder(false)}>
                 ← Back to Dashboard
               </Button>
-              <h1 className="text-2xl font-bold text-primary">FormCraft</h1>
+              <h1 className="text-2xl font-bold text-primary">Smart Formify</h1>
               <span className="text-sm text-muted-foreground">Form Builder</span>
             </div>
             <div className="flex items-center space-x-4">
-              <span className="text-sm text-foreground">Welcome, {user?.name}</span>
+              <span className="text-sm text-foreground">Welcome, {user?.fullName || user?.firstName || "User"}</span>
               <Button variant="outline" size="sm" onClick={() => setShowLogoutDialog(true)}>
                 <LogOut className="h-4 w-4 mr-2" />
                 Sign Out
@@ -55,7 +55,7 @@ export function DashboardLayout() {
             <span className="text-sm text-muted-foreground">Dynamic Form Builder</span>
           </div>
           <div className="flex items-center space-x-4">
-            <span className="text-sm text-foreground">Welcome, {user?.name}</span>
+            <span className="text-sm text-foreground">Welcome, {user?.fullName || user?.firstName || "User"}</span>
             <Button variant="outline" size="sm" onClick={() => setShowLogoutDialog(true)}>
               <LogOut className="h-4 w-4 mr-2" />
               Sign Out
@@ -123,11 +123,11 @@ export function DashboardLayout() {
                 <Card className="hover:shadow-lg transition-shadow cursor-pointer">
                   <CardHeader>
                     <CardTitle>Business Form</CardTitle>
-                    
+
                   </CardHeader>
                   <CardContent>
                     <div className="flex items-center justify-between text-sm text-muted-foreground">
-                      
+
                     </div>
                   </CardContent>
                 </Card>
@@ -138,7 +138,7 @@ export function DashboardLayout() {
                   </CardHeader>
                   <CardContent>
                     <div className="flex items-center justify-between text-sm text-muted-foreground">
-                      
+
                     </div>
                   </CardContent>
                 </Card>
@@ -174,11 +174,11 @@ export function DashboardLayout() {
                 <CardContent className="space-y-4">
                   <div>
                     <label className="text-sm font-medium">Email</label>
-                    <p className="text-sm text-muted-foreground">{user?.email}</p>
+                    <p className="text-sm text-muted-foreground">{user?.primaryEmailAddress?.emailAddress || "No email"}</p>
                   </div>
                   <div>
                     <label className="text-sm font-medium">Name</label>
-                    <p className="text-sm text-muted-foreground">{user?.name}</p>
+                    <p className="text-sm text-muted-foreground">{user?.fullName || user?.firstName || "User"}</p>
                   </div>
                 </CardContent>
               </Card>
@@ -196,11 +196,11 @@ export function DashboardLayout() {
 
   function DashboardStats() {
     const stats = useQuery(api.analytics.getSubmissionStats);
-  
+
     if (stats === undefined) {
       return <div>Loading analytics…</div>;
     }
-  
+
     return (
       <Card>
         <CardHeader>

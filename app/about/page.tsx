@@ -1,9 +1,8 @@
 "use client";
 
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, Users, Target, Zap, Shield, Globe, BarChart3, Code, Lightbulb } from "lucide-react";
+import { Card, CardContent } from "@/components/ui/card";
+import { ArrowLeft, Globe, BarChart3, Code } from "lucide-react";
 import { useRouter } from "next/navigation";
 
 export default function AboutPage() {
@@ -29,28 +28,6 @@ export default function AboutPage() {
       color: "bg-indigo-500"
     },
     
-  ];
-
-  const stats = [
-    { label: "Active Users", value: "10,000+", description: "Trusted by businesses worldwide" },
-    { label: "Forms Created", value: "50,000+", description: "Millions of responses collected" },
-    { label: "Uptime", value: "99.9%", description: "Reliable service you can count on" },
-    { label: "Support", value: "24/7", description: "Always here when you need help" }
-  ];
-
-  const team = [
-    {
-      name: "Afsah Ahmad",
-      role: "Founder & Lead Developer",
-      bio: "Full-stack developer with expertise in modern web technologies and user experience design.",
-      image: "/placeholder-user.jpg"
-    },
-    {
-      name: "Development Team",
-      role: "Software Engineers",
-      bio: "Passionate developers focused on creating intuitive and powerful form building tools.",
-      image: "/placeholder-user.jpg"
-    }
   ];
 
   return (

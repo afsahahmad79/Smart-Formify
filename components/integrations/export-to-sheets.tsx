@@ -25,7 +25,7 @@ export function ExportToSheetsButton({ formData, spreadsheetId }: ExportToSheets
         throw new Error('Failed to export to Google Sheets');
       }
 
-      const data = await response.json();
+      await response.json();
       
       toast({
         title: 'Success',

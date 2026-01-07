@@ -20,13 +20,11 @@ import {
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
-  
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import {
   Download,
   Search,
-  MoreHorizontal,
   Eye,
   Trash2,
   Calendar,
@@ -35,9 +33,13 @@ import {
   CheckCircle,
   Clock,
   AlertCircle,
+  ArrowUpDown,
+  ArrowUp,
+  ArrowDown,
 } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
-import { useQuery } from "convex/react"
+import { useQuery, useMutation } from "convex/react"
+import type { Id } from "@/convex/_generated/dataModel"
 
 interface Submission {
   id: string
@@ -46,7 +48,7 @@ interface Submission {
   submittedAt: number
   submitterEmail?: string
   submitterName?: string
-  status: string // Accept any string from backend
+  status: "new" | "reviewed" | "archived" | string // Accept status values from backend
   data: Record<string, any>
   ipAddress?: string
   userAgent?: string
@@ -56,26 +58,120 @@ interface Submission {
 
 export function SubmissionsDashboard() {
   // Fetch real submissions from Convex
-  const submissions = useQuery(api.forms.listSubmissions.listSubmissions, {}) ?? [];
+  const submissions = useQuery(api.submissions.queries.listSubmissions, {}) ?? [];
+  // Fetch user's forms for filter dropdown
+  const formsResult = useQuery(api.forms.queries.listForms, { paginationOpts: { numItems: 1000, cursor: null } });
+  const userForms = formsResult?.page ?? [];
+
   const [selectedSubmissions, setSelectedSubmissions] = useState<string[]>([])
   const [searchQuery, setSearchQuery] = useState("")
   const [statusFilter, setStatusFilter] = useState("all")
   const [formFilter, setFormFilter] = useState("all")
+  const [dateFilter, setDateFilter] = useState("all") // "all", "today", "week", "month", "year", "custom"
+  const [customDateStart, setCustomDateStart] = useState<string>("")
+  const [customDateEnd, setCustomDateEnd] = useState<string>("")
+  const [sortField, setSortField] = useState<"submittedAt" | "formName" | "submitterName" | "status">("submittedAt")
+  const [sortDirection, setSortDirection] = useState<"asc" | "desc">("desc")
   const [selectedSubmission, setSelectedSubmission] = useState<Submission | null>(null)
+  const [isDeleting, setIsDeleting] = useState<string | null>(null)
+  const [isUpdatingStatus, setIsUpdatingStatus] = useState<string | null>(null)
   const { toast } = useToast()
+
+  // Mutations
+  const updateSubmissionStatus = useMutation(api.submissions.mutations.updateSubmissionStatus)
+  const deleteSubmission = useMutation(api.submissions.mutations.deleteSubmission)
+  const bulkUpdateSubmissionStatus = useMutation(api.submissions.mutations.bulkUpdateSubmissionStatus)
+  const bulkDeleteSubmissions = useMutation(api.submissions.mutations.bulkDeleteSubmissions)
+
+  // Get unique forms for filter dropdown (from submissions and user forms)
+  const uniqueForms = Array.from(
+    new Map([
+      ...(submissions as Submission[]).map((s) => [s.formId, { id: s.formId, name: s.formName }] as [string, { id: string; name: string }]),
+      ...userForms.map((f) => [String(f._id), { id: String(f._id), name: f.title }] as [string, { id: string; name: string }])
+    ]).values()
+  )
+
+  // Date filter helper
+  const getDateRange = () => {
+    const now = new Date()
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+
+    switch (dateFilter) {
+      case "today":
+        return { start: today.getTime(), end: now.getTime() }
+      case "week":
+        const weekAgo = new Date(today)
+        weekAgo.setDate(weekAgo.getDate() - 7)
+        return { start: weekAgo.getTime(), end: now.getTime() }
+      case "month":
+        const monthAgo = new Date(today)
+        monthAgo.setMonth(monthAgo.getMonth() - 1)
+        return { start: monthAgo.getTime(), end: now.getTime() }
+      case "year":
+        const yearAgo = new Date(today)
+        yearAgo.setFullYear(yearAgo.getFullYear() - 1)
+        return { start: yearAgo.getTime(), end: now.getTime() }
+      case "custom":
+        const start = customDateStart ? new Date(customDateStart).getTime() : 0
+        const end = customDateEnd ? new Date(customDateEnd).getTime() + 86400000 : Date.now() // Add 1 day to include the end date
+        return { start, end }
+      default:
+        return { start: 0, end: Date.now() }
+    }
+  }
 
   const filteredSubmissions = (submissions as Submission[]).filter((submission) => {
     const matchesSearch =
       searchQuery === "" ||
-      submission.submitterName?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      submission.submitterEmail?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (submission.submitterName && submission.submitterName !== "Anonymous" && submission.submitterName.toLowerCase().includes(searchQuery.toLowerCase())) ||
+      (submission.submitterEmail && submission.submitterEmail !== "Anonymous" && submission.submitterEmail.toLowerCase().includes(searchQuery.toLowerCase())) ||
       submission.formName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      Object.values(submission.data).some((value) => String(value).toLowerCase().includes(searchQuery.toLowerCase()))
+      (submission.data && Object.values(submission.data).some((value) => String(value).toLowerCase().includes(searchQuery.toLowerCase())))
 
     const matchesStatus = statusFilter === "all" || submission.status === statusFilter
     const matchesForm = formFilter === "all" || submission.formId === formFilter
 
-    return matchesSearch && matchesStatus && matchesForm
+    // Date filter
+    const dateRange = getDateRange()
+    const matchesDate = dateFilter === "all" ||
+      (submission.submittedAt >= dateRange.start && submission.submittedAt <= dateRange.end)
+
+    return matchesSearch && matchesStatus && matchesForm && matchesDate
+  })
+
+  // Sort filtered submissions
+  const sortedSubmissions = [...filteredSubmissions].sort((a, b) => {
+    let aValue: any
+    let bValue: any
+
+    switch (sortField) {
+      case "submittedAt":
+        aValue = a.submittedAt
+        bValue = b.submittedAt
+        break
+      case "formName":
+        aValue = a.formName.toLowerCase()
+        bValue = b.formName.toLowerCase()
+        break
+      case "submitterName":
+        aValue = (a.submitterName && a.submitterName !== "Anonymous" ? a.submitterName : a.submitterEmail || "Anonymous").toLowerCase()
+        bValue = (b.submitterName && b.submitterName !== "Anonymous" ? b.submitterName : b.submitterEmail || "Anonymous").toLowerCase()
+        break
+      case "status":
+        aValue = a.status
+        bValue = b.status
+        break
+      default:
+        return 0
+    }
+
+    if (aValue < bValue) {
+      return sortDirection === "asc" ? -1 : 1
+    }
+    if (aValue > bValue) {
+      return sortDirection === "asc" ? 1 : -1
+    }
+    return 0
   })
 
   const handleSelectSubmission = (submissionId: string, checked: boolean) => {
@@ -88,48 +184,147 @@ export function SubmissionsDashboard() {
 
   const handleSelectAll = (checked: boolean) => {
     if (checked) {
-      setSelectedSubmissions(filteredSubmissions.map((s) => s.id))
+      setSelectedSubmissions(sortedSubmissions.map((s) => s.id))
     } else {
       setSelectedSubmissions([])
     }
   }
 
-  // TODO: Implement backend update for status change
-  const handleStatusChange = (submissionId: string, newStatus: Submission["status"]) => {
-    toast({
-      title: "Status updated",
-      description: `Submission marked as ${newStatus}`,
-    })
+  const handleSort = (field: "submittedAt" | "formName" | "submitterName" | "status") => {
+    if (sortField === field) {
+      // Toggle direction if clicking the same field
+      setSortDirection(sortDirection === "asc" ? "desc" : "asc")
+    } else {
+      // Set new field and default to descending
+      setSortField(field)
+      setSortDirection("desc")
+    }
   }
 
-  // TODO: Implement backend update for bulk status change
-  const handleBulkStatusChange = (newStatus: Submission["status"]) => {
-    setSelectedSubmissions([])
-    toast({
-      title: "Bulk update completed",
-      description: `${selectedSubmissions.length} submissions updated`,
-    })
+  const getSortIcon = (field: "submittedAt" | "formName" | "submitterName" | "status") => {
+    if (sortField !== field) {
+      return <ArrowUpDown className="h-3 w-3 ml-1.5 opacity-40" />
+    }
+    return sortDirection === "asc" ? (
+      <ArrowUp className="h-3 w-3 ml-1.5 text-primary" />
+    ) : (
+      <ArrowDown className="h-3 w-3 ml-1.5 text-primary" />
+    )
   }
 
-  // TODO: Implement backend delete
-  const handleDelete = (submissionId: string) => {
-    toast({
-      title: "Submission deleted",
-      description: "The submission has been permanently deleted",
-    })
+  // Handle status change
+  const handleStatusChange = async (submissionId: string, newStatus: "new" | "reviewed" | "archived") => {
+    // Prevent duplicate clicks
+    if (isUpdatingStatus === submissionId) return
+
+    setIsUpdatingStatus(submissionId)
+    try {
+      await updateSubmissionStatus({
+        id: submissionId as Id<"submissions">,
+        status: newStatus,
+      })
+      // Remove from selection if it was selected
+      setSelectedSubmissions(prev => prev.filter(id => id !== submissionId))
+      toast({
+        title: "Status updated",
+        description: `Submission marked as ${newStatus}`,
+      })
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to update submission status",
+        variant: "destructive",
+      })
+    } finally {
+      setIsUpdatingStatus(null)
+    }
   }
 
-  // TODO: Implement backend bulk delete
-  const handleBulkDelete = () => {
-    setSelectedSubmissions([])
-    toast({
-      title: "Submissions deleted",
-      description: `${selectedSubmissions.length} submissions deleted`,
-    })
+  // Handle bulk status change
+  const handleBulkStatusChange = async (newStatus: "new" | "reviewed" | "archived") => {
+    if (selectedSubmissions.length === 0) return
+
+    try {
+      await bulkUpdateSubmissionStatus({
+        ids: selectedSubmissions as Id<"submissions">[],
+        status: newStatus,
+      })
+      const count = selectedSubmissions.length
+      setSelectedSubmissions([])
+      toast({
+        title: "Bulk update completed",
+        description: `${count} submission(s) marked as ${newStatus}`,
+      })
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to update submissions",
+        variant: "destructive",
+      })
+    }
+  }
+
+  // Handle delete
+  const handleDelete = async (submissionId: string) => {
+    // Prevent duplicate clicks
+    if (isDeleting === submissionId) return
+
+    // Confirmation dialog
+    if (!confirm("Are you sure you want to delete this submission? This action cannot be undone.")) {
+      return
+    }
+
+    setIsDeleting(submissionId)
+    try {
+      await deleteSubmission({
+        id: submissionId as Id<"submissions">,
+      })
+      // Remove from selection if it was selected
+      setSelectedSubmissions(prev => prev.filter(id => id !== submissionId))
+      toast({
+        title: "Submission deleted",
+        description: "The submission has been permanently deleted",
+      })
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to delete submission",
+        variant: "destructive",
+      })
+    } finally {
+      setIsDeleting(null)
+    }
+  }
+
+  // Handle bulk delete
+  const handleBulkDelete = async () => {
+    if (selectedSubmissions.length === 0) return
+
+    if (!confirm(`Are you sure you want to delete ${selectedSubmissions.length} submission(s)? This action cannot be undone.`)) {
+      return
+    }
+
+    try {
+      await bulkDeleteSubmissions({
+        ids: selectedSubmissions as Id<"submissions">[],
+      })
+      const count = selectedSubmissions.length
+      setSelectedSubmissions([])
+      toast({
+        title: "Submissions deleted",
+        description: `${count} submission(s) deleted`,
+      })
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to delete submissions",
+        variant: "destructive",
+      })
+    }
   }
 
   const exportSubmissions = (format: "csv" | "json") => {
-    const dataToExport = filteredSubmissions.map((submission) => ({
+    const dataToExport = sortedSubmissions.map((submission) => ({
       id: submission.id,
       form: submission.formName,
       submittedAt: new Date(submission.submittedAt).toLocaleString(),
@@ -176,6 +371,8 @@ export function SubmissionsDashboard() {
         return <CheckCircle className="h-4 w-4 text-green-600" />
       case "archived":
         return <Clock className="h-4 w-4 text-gray-600" />
+      default:
+        return <AlertCircle className="h-4 w-4 text-blue-600" />
     }
   }
 
@@ -187,6 +384,8 @@ export function SubmissionsDashboard() {
         return "bg-green-100 text-green-800"
       case "archived":
         return "bg-gray-100 text-gray-800"
+      default:
+        return "bg-blue-100 text-blue-800"
     }
   }
 
@@ -295,12 +494,70 @@ export function SubmissionsDashboard() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Forms</SelectItem>
-                <SelectItem value="contact-form">Contact Form</SelectItem>
-                <SelectItem value="survey-form">Customer Survey</SelectItem>
-                <SelectItem value="feedback-form">Feedback Form</SelectItem>
+                {uniqueForms.map((form) => (
+                  <SelectItem key={form.id} value={form.id}>
+                    {form.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Select value={dateFilter} onValueChange={setDateFilter}>
+              <SelectTrigger className="w-48">
+                <SelectValue placeholder="Filter by date" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Time</SelectItem>
+                <SelectItem value="today">Today</SelectItem>
+                <SelectItem value="week">Last 7 Days</SelectItem>
+                <SelectItem value="month">Last 30 Days</SelectItem>
+                <SelectItem value="year">Last Year</SelectItem>
+                <SelectItem value="custom">Custom Range</SelectItem>
+              </SelectContent>
+            </Select>
+            <Select value={`${sortField}-${sortDirection}`} onValueChange={(value) => {
+              const [field, direction] = value.split("-") as [typeof sortField, typeof sortDirection]
+              setSortField(field)
+              setSortDirection(direction)
+            }}>
+              <SelectTrigger className="w-48">
+                <SelectValue placeholder="Sort by" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="submittedAt-desc">Date (Newest First)</SelectItem>
+                <SelectItem value="submittedAt-asc">Date (Oldest First)</SelectItem>
+                <SelectItem value="formName-asc">Form Name (A-Z)</SelectItem>
+                <SelectItem value="formName-desc">Form Name (Z-A)</SelectItem>
+                <SelectItem value="submitterName-asc">Submitter (A-Z)</SelectItem>
+                <SelectItem value="submitterName-desc">Submitter (Z-A)</SelectItem>
+                <SelectItem value="status-asc">Status (A-Z)</SelectItem>
+                <SelectItem value="status-desc">Status (Z-A)</SelectItem>
               </SelectContent>
             </Select>
           </div>
+          {dateFilter === "custom" && (
+            <div className="flex flex-col md:flex-row gap-4 mt-4">
+              <div className="flex-1">
+                <Label htmlFor="date-start">Start Date</Label>
+                <Input
+                  id="date-start"
+                  type="date"
+                  value={customDateStart}
+                  onChange={(e) => setCustomDateStart(e.target.value)}
+                  className="mt-1"
+                />
+              </div>
+              <div className="flex-1">
+                <Label htmlFor="date-end">End Date</Label>
+                <Input
+                  id="date-end"
+                  type="date"
+                  value={customDateEnd}
+                  onChange={(e) => setCustomDateEnd(e.target.value)}
+                  className="mt-1"
+                />
+              </div>
+            </div>
+          )}
         </CardContent>
       </Card>
 
@@ -311,6 +568,9 @@ export function SubmissionsDashboard() {
             <div className="flex items-center justify-between">
               <span className="text-sm text-muted-foreground">{selectedSubmissions.length} submission(s) selected</span>
               <div className="flex items-center space-x-2">
+                <Button variant="outline" size="sm" onClick={() => handleBulkStatusChange("new")}>
+                  Mark as New
+                </Button>
                 <Button variant="outline" size="sm" onClick={() => handleBulkStatusChange("reviewed")}>
                   Mark as Reviewed
                 </Button>
@@ -336,7 +596,7 @@ export function SubmissionsDashboard() {
         <CardHeader>
           <CardTitle>Recent Submissions</CardTitle>
           <CardDescription>
-            {filteredSubmissions.length} of {submissions.length} submissions
+            {sortedSubmissions.length} of {submissions.length} submissions
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -345,88 +605,172 @@ export function SubmissionsDashboard() {
               <TableRow>
                 <TableHead className="w-12">
                   <Checkbox
-                    checked={selectedSubmissions.length === filteredSubmissions.length}
+                    checked={selectedSubmissions.length === sortedSubmissions.length && sortedSubmissions.length > 0}
                     onCheckedChange={handleSelectAll}
                   />
                 </TableHead>
-                <TableHead>Form</TableHead>
-                <TableHead>Submitter</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Submitted</TableHead>
-                <TableHead className="w-12"></TableHead>
+                <TableHead>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="-ml-3 h-8 hover:bg-accent"
+                    onClick={() => handleSort("formName")}
+                  >
+                    <span className="flex items-center">
+                      Form
+                      {getSortIcon("formName")}
+                    </span>
+                  </Button>
+                </TableHead>
+                <TableHead>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="-ml-3 h-8 hover:bg-accent"
+                    onClick={() => handleSort("submitterName")}
+                  >
+                    <span className="flex items-center">
+                      Submitter
+                      {getSortIcon("submitterName")}
+                    </span>
+                  </Button>
+                </TableHead>
+                <TableHead>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="-ml-3 h-8 hover:bg-accent"
+                    onClick={() => handleSort("status")}
+                  >
+                    <span className="flex items-center">
+                      Status
+                      {getSortIcon("status")}
+                    </span>
+                  </Button>
+                </TableHead>
+                <TableHead>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="-ml-3 h-8 hover:bg-accent"
+                    onClick={() => handleSort("submittedAt")}
+                  >
+                    <span className="flex items-center">
+                      Submitted
+                      {getSortIcon("submittedAt")}
+                    </span>
+                  </Button>
+                </TableHead>
+                <TableHead className="text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {(filteredSubmissions as Submission[]).map((submission) => (
-                <TableRow key={submission.id}>
-                  <TableCell>
-                    <Checkbox
-                      checked={selectedSubmissions.includes(submission.id)}
-                      onCheckedChange={(checked) => handleSelectSubmission(submission.id, checked as boolean)}
-                    />
-                  </TableCell>
-                  <TableCell>
-                    <div className="font-medium">{submission.formName}</div>
-                    <div className="text-sm text-muted-foreground">ID: {submission.id}</div>
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex items-center space-x-2">
-                      {submission.submitterEmail ? (
-                        <>
-                          <User className="h-4 w-4 text-muted-foreground" />
-                          <div>
-                            <div className="font-medium">{submission.submitterName || "Unknown"}</div>
-                            <div className="text-sm text-muted-foreground">{submission.submitterEmail}</div>
-                          </div>
-                        </>
-                      ) : (
-                        <div className="text-sm text-muted-foreground">Anonymous</div>
-                      )}
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    <Badge className={getStatusColor(submission.status)}>
-                      <div className="flex items-center space-x-1">
-                        {getStatusIcon(submission.status)}
-                        <span className="capitalize">{submission.status}</span>
-                      </div>
-                    </Badge>
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex items-center space-x-2">
-                      <Calendar className="h-4 w-4 text-muted-foreground" />
-                      <span className="text-sm">{formatDate(submission.submittedAt)}</span>
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="sm">
-                          <MoreHorizontal className="h-4 w-4" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        <DropdownMenuItem onClick={() => setSelectedSubmission(submission)}>
-                          <Eye className="h-4 w-4 mr-2" />
-                          View Details
-                        </DropdownMenuItem>
-                        <DropdownMenuSeparator />
-                        <DropdownMenuItem onClick={() => handleStatusChange(submission.id, "reviewed")}>
-                          Mark as Reviewed
-                        </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => handleStatusChange(submission.id, "archived")}>
-                          Archive
-                        </DropdownMenuItem>
-                        <DropdownMenuSeparator />
-                        <DropdownMenuItem onClick={() => handleDelete(submission.id)} className="text-destructive">
-                          <Trash2 className="h-4 w-4 mr-2" />
-                          Delete
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
+              {sortedSubmissions.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
+                    No submissions found. {searchQuery || statusFilter !== "all" || formFilter !== "all" ? "Try adjusting your filters." : "Submissions will appear here once forms are submitted."}
                   </TableCell>
                 </TableRow>
-              ))}
+              ) : (
+                (sortedSubmissions as Submission[]).map((submission) => (
+                  <TableRow key={submission.id}>
+                    <TableCell>
+                      <Checkbox
+                        checked={selectedSubmissions.includes(submission.id)}
+                        onCheckedChange={(checked) => handleSelectSubmission(submission.id, checked as boolean)}
+                      />
+                    </TableCell>
+                    <TableCell>
+                      <div className="font-medium">{submission.formName}</div>
+                      <div className="text-sm text-muted-foreground">ID: {submission.id}</div>
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex items-center space-x-2">
+                        {submission.submitterEmail && submission.submitterEmail !== "Anonymous" ? (
+                          <>
+                            <User className="h-4 w-4 text-muted-foreground" />
+                            <div>
+                              <div className="font-medium">{submission.submitterName && submission.submitterName !== "Anonymous" ? submission.submitterName : "Unknown"}</div>
+                              <div className="text-sm text-muted-foreground">{submission.submitterEmail}</div>
+                            </div>
+                          </>
+                        ) : (
+                          <div className="text-sm text-muted-foreground">Anonymous</div>
+                        )}
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <Badge className={getStatusColor(submission.status)}>
+                        <div className="flex items-center space-x-1">
+                          {getStatusIcon(submission.status)}
+                          <span className="capitalize">{submission.status}</span>
+                        </div>
+                      </Badge>
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex items-center space-x-2">
+                        <Calendar className="h-4 w-4 text-muted-foreground" />
+                        <span className="text-sm">{formatDate(submission.submittedAt)}</span>
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex items-center justify-end gap-2">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => setSelectedSubmission(submission)}
+                          className="h-8 px-2"
+                          title="View Details"
+                        >
+                          <Eye className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleStatusChange(submission.id, "reviewed")}
+                          className="h-8 px-2"
+                          title="Mark as Reviewed"
+                          disabled={submission.status === "reviewed" || isUpdatingStatus === submission.id}
+                        >
+                          <CheckCircle className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleStatusChange(submission.id, "archived")}
+                          className="h-8 px-2"
+                          title="Archive"
+                          disabled={submission.status === "archived" || isUpdatingStatus === submission.id}
+                        >
+                          <Clock className="h-4 w-4" />
+                        </Button>
+                        {submission.status !== "new" && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleStatusChange(submission.id, "new")}
+                            className="h-8 px-2"
+                            title="Mark as New"
+                            disabled={isUpdatingStatus === submission.id}
+                          >
+                            <AlertCircle className="h-4 w-4" />
+                          </Button>
+                        )}
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleDelete(submission.id)}
+                          className="h-8 px-2 text-destructive hover:text-destructive"
+                          title="Delete"
+                          disabled={isDeleting === submission.id}
+                        >
+                          <Trash2 className={`h-4 w-4 ${isDeleting === submission.id ? "opacity-50" : ""}`} />
+                        </Button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))
+              )}
             </TableBody>
           </Table>
         </CardContent>

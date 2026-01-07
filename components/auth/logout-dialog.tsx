@@ -2,9 +2,9 @@
 
 import type React from "react"
 import { useState } from "react"
+import { useClerk } from "@clerk/nextjs"
+import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
 import {
   Dialog,
   DialogContent,
@@ -13,7 +13,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
-import { useAuth } from "./auth-context"
 import { useToast } from "@/hooks/use-toast"
 
 interface LogoutDialogProps {
@@ -23,7 +22,8 @@ interface LogoutDialogProps {
 
 export function LogoutDialog({ open, onOpenChange }: LogoutDialogProps) {
   const [isLoading, setIsLoading] = useState(false)
-  const { logout } = useAuth()
+  const clerk = useClerk()
+  const router = useRouter()
   const { toast } = useToast()
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -31,24 +31,18 @@ export function LogoutDialog({ open, onOpenChange }: LogoutDialogProps) {
 
     setIsLoading(true)
     try {
-      const success = await logout()
-      if (success) {
-        toast({
-          title: "Success",
-          description: "You have been logged out successfully",
-        })
-        onOpenChange(false)
-      } else {
-        toast({
-          title: "Logout Failed",
-          description: "An error occurred during logout. Please try again.",
-          variant: "destructive",
-        })
-      }
+      await clerk.signOut()
+      toast({
+        title: "Success",
+        description: "You have been logged out successfully",
+      })
+      onOpenChange(false)
+      router.push("/auth/sign-in")
     } catch (error) {
+      console.error("Logout error:", error)
       toast({
         title: "Error",
-        description: "An error occurred during logout",
+        description: "An error occurred during logout. Please try again.",
         variant: "destructive",
       })
     } finally {

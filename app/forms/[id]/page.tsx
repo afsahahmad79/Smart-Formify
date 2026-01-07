@@ -14,13 +14,11 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Badge } from "@/components/ui/badge"
 import { CheckCircle2, AlertCircle } from "lucide-react"
-import type { FormSchema } from "@/types/form"
 import type { FormElement } from "@/types/form"
 import { useUser } from "@clerk/nextjs"
-import { useAuth } from "@/components/auth/auth-context"
-import { useQuery } from "convex/react"
-import { api } from "../../convex/_generated/api"
-import type { Id } from "../../convex/_generated/dataModel"
+import { useQuery, useMutation } from "convex/react"
+import { api } from "@/convex/_generated/api"
+import type { Id } from "@/convex/_generated/dataModel"
 
 
 
@@ -37,8 +35,7 @@ export default function PublicFormPage() {
   const [submitterEmail, setSubmitterEmail] = useState("")
 
   // Authentication
-  const { user: clerkUser, isSignedIn } = useUser()
-  const { user: customUser } = useAuth()
+  const { isSignedIn } = useUser()
 
   useEffect(() => {
     // Check if this is an embedded form
@@ -66,7 +63,7 @@ export default function PublicFormPage() {
           if (!regex.test(value)) {
             return `${element.label} format is invalid`
           }
-        } catch (e) {
+        } catch {
           // Invalid regex pattern
         }
       }
@@ -91,7 +88,7 @@ export default function PublicFormPage() {
   }
 
   // Use Convex mutation for real submissions
-  const submitForm = useMutation(api["forms/submissions"].submitForm)
+  const submitForm = useMutation(api.submissions.mutations.submitForm)
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -101,19 +98,20 @@ export default function PublicFormPage() {
 
     // Validate all fields
     const errors: Record<string, string> = {}
-    form.elements.forEach((element: FormElement) => {
-          const error = validateField(element, formData[element.id])
-          if (error) {
-            errors[element.id] = error
-          }
-        })
+    form.elements.forEach((element) => {
+      const formElement = element as FormElement
+      const error = validateField(formElement, formData[formElement.id])
+      if (error) {
+        errors[formElement.id] = error
+      }
+    })
 
     setValidationErrors(errors)
 
 
     if (Object.keys(errors).length === 0) {
       // Validate email if required
-      if (form.collectEmails && !submitterEmail.trim()) {
+      if ((form as any).collectEmails && !submitterEmail.trim()) {
         setValidationErrors({ email: "Email is required" })
         setIsSubmitting(false)
         return
@@ -122,9 +120,9 @@ export default function PublicFormPage() {
       // Save submission to backend
       try {
         await submitForm({
-          formId,
+          formId: formId as Id<"forms">,
           data: formData,
-          submitterEmail: form.collectEmails ? submitterEmail : undefined,
+          submitterEmail: (form as any).collectEmails ? submitterEmail : undefined,
         })
         setSubmitSuccess(true)
       } catch (err) {
@@ -139,7 +137,7 @@ export default function PublicFormPage() {
   if (!form) {
     return (
       <div
-        className={`min-h-screen flex items-center justify-center ${isEmbedded ? "bg-transparent" : "bg-background"}`}
+        className={`${isEmbedded ? "min-h-screen" : "h-screen"} flex items-center justify-center ${isEmbedded ? "bg-transparent" : "bg-background"}`}
       >
         <Card className="w-full max-w-md">
           <CardContent className="pt-6">
@@ -155,10 +153,10 @@ export default function PublicFormPage() {
   }
 
   // Check if authentication is required
-  if (!form.allowAnonymous && !isSignedIn && !customUser) {
+  if (!(form as any).allowAnonymous && !isSignedIn) {
     return (
       <div
-        className={`min-h-screen flex items-center justify-center ${isEmbedded ? "bg-transparent" : "bg-background"}`}
+        className={`${isEmbedded ? "min-h-screen" : "h-screen"} flex items-center justify-center ${isEmbedded ? "bg-transparent" : "bg-background"}`}
       >
         <Card className="w-full max-w-md">
           <CardContent className="pt-6">
@@ -181,7 +179,7 @@ export default function PublicFormPage() {
   if (submitSuccess) {
     return (
       <div
-        className={`min-h-screen flex items-center justify-center ${isEmbedded ? "bg-transparent" : "bg-background"}`}
+        className={`${isEmbedded ? "min-h-screen" : "h-screen"} flex items-center justify-center ${isEmbedded ? "bg-transparent" : "bg-background"}`}
       >
         <Card className="w-full max-w-md">
           <CardContent className="pt-6">
@@ -197,8 +195,8 @@ export default function PublicFormPage() {
   }
 
   return (
-    <div className={`min-h-screen py-4 sm:py-8 px-2 sm:px-4 ${isEmbedded ? "bg-transparent" : "bg-background"}`}>
-      <div className="max-w-2xl mx-auto">
+    <div className={`${isEmbedded ? "min-h-screen" : "h-screen overflow-y-auto"} py-4 sm:py-8 px-2 sm:px-4 ${isEmbedded ? "bg-transparent" : "bg-background"}`}>
+      <div className="max-w-2xl mx-auto min-h-full">
         <Card className="shadow-sm">
           <CardHeader>
             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 sm:gap-0">
@@ -216,7 +214,7 @@ export default function PublicFormPage() {
           <CardContent>
             <form onSubmit={handleSubmit} className="space-y-4 sm:space-y-6">
               {/* Email collection field if required */}
-              {form.collectEmails && (
+              {(form as any).collectEmails && (
                 <div className="space-y-1 sm:space-y-2">
                   <Label htmlFor="submitterEmail" className="flex items-center space-x-1 text-sm sm:text-base">
                     <span>Email Address</span>
@@ -237,69 +235,70 @@ export default function PublicFormPage() {
                 </div>
               )}
 
-              {form.elements.map((element: FormElement) => {
-                const hasError = validationErrors[element.id]
-                const fieldValue = formData[element.id]
+              {form.elements.map((element) => {
+                const formElement = element as FormElement
+                const hasError = validationErrors[formElement.id]
+                const fieldValue = formData[formElement.id]
 
                 return (
-                  <div key={element.id} className="space-y-1 sm:space-y-2">
-                    <Label htmlFor={element.id} className="flex items-center space-x-1 text-sm sm:text-base">
-                      <span>{element.label}</span>
-                      {element.required && <span className="text-destructive">*</span>}
+                  <div key={formElement.id} className="space-y-1 sm:space-y-2">
+                    <Label htmlFor={formElement.id} className="flex items-center space-x-1 text-sm sm:text-base">
+                      <span>{formElement.label}</span>
+                      {formElement.required && <span className="text-destructive">*</span>}
                     </Label>
 
-                    {element.type === "text" || element.type === "email" || element.type === "number" ? (
+                    {formElement.type === "text" || formElement.type === "email" || formElement.type === "number" ? (
                       <Input
-                        id={element.id}
-                        type={element.type}
-                        placeholder={element.placeholder}
+                        id={formElement.id}
+                        type={formElement.type}
+                        placeholder={formElement.placeholder}
                         value={fieldValue || ""}
-                        onChange={(e) => updateFormData(element.id, e.target.value)}
+                        onChange={(e) => updateFormData(formElement.id, e.target.value)}
                         className={hasError ? "border-destructive focus-visible:ring-destructive" : ""}
                       />
-                    ) : element.type === "textarea" ? (
+                    ) : formElement.type === "textarea" ? (
                       <Textarea
-                        id={element.id}
-                        placeholder={element.placeholder}
+                        id={formElement.id}
+                        placeholder={formElement.placeholder}
                         value={fieldValue || ""}
-                        onChange={(e) => updateFormData(element.id, e.target.value)}
+                        onChange={(e) => updateFormData(formElement.id, e.target.value)}
                         className={hasError ? "border-destructive focus-visible:ring-destructive" : ""}
                       />
-                    ) : element.type === "select" ? (
-                      <Select value={fieldValue || ""} onValueChange={(value) => updateFormData(element.id, value)}>
+                    ) : formElement.type === "select" ? (
+                      <Select value={fieldValue || ""} onValueChange={(value) => updateFormData(formElement.id, value)}>
                         <SelectTrigger className={hasError ? "border-destructive focus:ring-destructive" : ""}>
                           <SelectValue placeholder="Select an option" />
                         </SelectTrigger>
                         <SelectContent>
-                          {element.options?.map((option: string, idx: number) => (
+                          {formElement.options?.map((option: string, idx: number) => (
                             <SelectItem key={idx} value={option}>
                               {option}
                             </SelectItem>
                           ))}
                         </SelectContent>
                       </Select>
-                    ) : element.type === "radio" ? (
+                    ) : formElement.type === "radio" ? (
                       <RadioGroup
                         value={fieldValue || ""}
-                        onValueChange={(value) => updateFormData(element.id, value)}
+                        onValueChange={(value) => updateFormData(formElement.id, value)}
                         className={hasError ? "border border-destructive rounded-md p-2" : ""}
                       >
-                        {element.options?.map((option: string, idx: number) => (
+                        {formElement.options?.map((option: string, idx: number) => (
                           <div key={idx} className="flex items-center space-x-2">
-                            <RadioGroupItem value={option} id={`${element.id}-${idx}`} />
-                            <Label htmlFor={`${element.id}-${idx}`}>{option}</Label>
+                            <RadioGroupItem value={option} id={`${formElement.id}-${idx}`} />
+                            <Label htmlFor={`${formElement.id}-${idx}`}>{option}</Label>
                           </div>
                         ))}
                       </RadioGroup>
-                    ) : element.type === "checkbox" ? (
+                    ) : formElement.type === "checkbox" ? (
                       <div className="flex items-center space-x-2">
                         <Checkbox
-                          id={element.id}
+                          id={formElement.id}
                           checked={fieldValue || false}
-                          onCheckedChange={(checked) => updateFormData(element.id, checked)}
+                          onCheckedChange={(checked) => updateFormData(formElement.id, checked)}
                           className={hasError ? "border-destructive" : ""}
                         />
-                        <Label htmlFor={element.id}>{element.label}</Label>
+                        <Label htmlFor={formElement.id}>{formElement.label}</Label>
                       </div>
                     ) : null}
 
@@ -323,7 +322,7 @@ export default function PublicFormPage() {
         {!isEmbedded && (
           <div className="text-center mt-4 sm:mt-6">
             <p className="text-xs sm:text-sm text-muted-foreground">
-              Powered by <span className="font-semibold text-primary">FormCraft</span>
+              Powered by <span className="font-semibold text-primary">Smart Formify</span>
             </p>
           </div>
         )}

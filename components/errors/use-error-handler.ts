@@ -1,5 +1,5 @@
 import { useCallback } from 'react';
-import { createUnhandledError, UnhandledError } from './console-error';
+import { createUnhandledError } from './console-error';
 
 /**
  * Non-hook version of error handler that can be used in class components
@@ -24,7 +24,7 @@ export function handleClientError(error: Error | string, context?: Record<string
         existingErrors.shift();
       }
       localStorage.setItem('unhandledErrors', JSON.stringify(existingErrors));
-    } catch (e) {
+    } catch {
       // Ignore localStorage errors
     }
   }

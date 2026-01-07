@@ -1,11 +1,11 @@
 "use client"
-import { useState, useEffect, useCallback } from "react"
+import { useState, useEffect, useCallback, useRef } from "react"
 import { FormElement } from "@/types/form";
 import { Integration } from "@/types/integration";
-import { useAction, useMutation, useQuery } from "convex/react";
+import { useMutation, useQuery } from "convex/react";
 import type { Id } from "../../convex/_generated/dataModel";
 import { api } from "../../convex/_generated/api";
-import { DndContext, closestCenter, DragEndEvent, DragStartEvent, DragOverlay, useDroppable } from "@dnd-kit/core"
+import { DndContext, closestCenter, DragEndEvent, DragStartEvent, useDroppable } from "@dnd-kit/core"
 import { SortableContext, verticalListSortingStrategy, arrayMove } from "@dnd-kit/sortable"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -13,26 +13,19 @@ import { Label } from "@/components/ui/label"
 import { Checkbox } from "@/components/ui/checkbox"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog"
 import { Textarea } from "@/components/ui/textarea"
-import { Trash2, Settings, Eye, Save, EyeOff, Share, Globe, Copy, Zap } from "lucide-react"
+import { Trash2, Settings, Eye, Save, EyeOff, Share, Globe, Copy, Zap, Edit, Lock } from "lucide-react"
+import { Switch } from "@/components/ui/switch"
 import { FormElementPalette } from "./form-element-palette"
 import { FormElementConfig } from "./form-element-config"
 import { FormPreview } from "./form-preview"
 import { RealtimePreview } from "./realtime-preview"
 import { PublishDialog } from "./publish-dialog"
+import { ShareUrlDialog } from "./share-url-dialog"
 import { IntegrationsManager } from "../integrations/integrations-manager"
 import { Badge } from "@/components/ui/badge"
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { useToast } from "@/hooks/use-toast"
-import { useAuth } from "@/components/auth/auth-context"
 import { useUser, useSession } from "@clerk/nextjs"
 import { copyToClipboard } from "@/lib/clipboard"
 
@@ -58,22 +51,24 @@ function DroppableCanvas({ children }: { children: React.ReactNode }) {
   return (
     <div
       ref={setNodeRef}
-      className={`min-h-96 p-6 border-2 border-dashed rounded-lg transition-colors ${
-        isOver ? "border-primary bg-primary/5" : "border-muted-foreground/25"
-      }`}
+      className={`min-h-96 p-6 border-2 border-dashed rounded-lg transition-colors ${isOver ? "border-primary bg-primary/5" : "border-muted-foreground/25"
+        }`}
     >
       {children}
     </div>
   )
 }
 
-export function FormBuilder() {
-  const { user, loading } = useAuth();
-  const { user: clerkUser, isSignedIn, isLoaded: clerkLoaded } = useUser();
+interface FormBuilderProps {
+  initialFormId?: Id<"forms">
+}
+
+export function FormBuilder({ initialFormId }: FormBuilderProps) {
+  const { user, isSignedIn, isLoaded: clerkLoaded } = useUser();
   const { session, isLoaded: sessionLoaded } = useSession();
-  
-  const [formId, setFormId] = useState<Id<"forms"> | null>(null);
-  const [isNew, setIsNew] = useState(true);
+
+  const [formId, setFormId] = useState<Id<"forms"> | null>(initialFormId || null);
+  const [isNew, setIsNew] = useState(!initialFormId);
   const [formSchema, setFormSchema] = useState<FormSchema>({
     id: "",
     title: "Untitled Form",
@@ -81,6 +76,12 @@ export function FormBuilder() {
     elements: [],
     status: "draft",
   })
+  const formSchemaRef = useRef(formSchema)
+
+  // Keep ref in sync with state
+  useEffect(() => {
+    formSchemaRef.current = formSchema
+  }, [formSchema])
 
   // Memory optimization: limit form elements to prevent memory issues
   const maxElements = 50;
@@ -88,47 +89,187 @@ export function FormBuilder() {
   const [selectedElementId, setSelectedElementId] = useState<string | null>(null)
   const selectedElement = selectedElementId ? formSchema.elements.find(el => el.id === selectedElementId) : null
   const [showPreview, setShowPreview] = useState(false)
-  const [showRealtimePreview, setShowRealtimePreview] = useState(true)
+  const [showRealtimePreview, setShowRealtimePreview] = useState(false)
   const [showPublishDialog, setShowPublishDialog] = useState(false)
+  const [showShareUrlDialog, setShowShareUrlDialog] = useState(false)
   const [showIntegrations, setShowIntegrations] = useState(false)
   const [integrations, setIntegrations] = useState<Integration[]>([])
-  const [activeId, setActiveId] = useState<string | null>(null)
-  const [showAIGenerateDialog, setShowAIGenerateDialog] = useState(false)
-  const [isGenerating, setIsGenerating] = useState(false)
-  const [prompt, setPrompt] = useState("")
+  const [isSaving, setIsSaving] = useState(false)
+  const [lastSaved, setLastSaved] = useState<Date | null>(null)
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
+  const [isEditMode, setIsEditMode] = useState(!initialFormId) // New forms editable by default, existing forms read-only
+  const [isFormLoaded, setIsFormLoaded] = useState(false) // Track if form has been initially loaded
   const { toast } = useToast()
 
-  const generateForm = useAction(api.forms.actions.generateForm)
   const createForm = useMutation(api.forms.mutations.createForm)
   const updateForm = useMutation(api.forms.mutations.updateForm)
   const publishForm = useMutation(api.forms.mutations.publishForm)
   const unpublishForm = useMutation(api.forms.mutations.unpublishForm)
-  
-  // Test query to verify Convex authentication is working
-  const getCurrentUser = useQuery(api.users.queries.getCurrent)
 
-  // Debug: Log authentication state
+  // Load form data if initialFormId is provided
+  const loadedForm = useQuery(
+    api.forms.queries.getForm,
+    initialFormId ? { id: initialFormId } : "skip"
+  )
+
+  // Load form data when it becomes available (only once on initial load)
   useEffect(() => {
-    console.log("🔐 Authentication Debug:", {
-      "Clerk User": clerkUser ? "✅ Present" : "❌ Missing",
-      "Is Signed In": isSignedIn,
-      "Clerk Session": session ? "✅ Present" : "❌ Missing",
-      "Session ID": session?.id,
-      "Convex User": getCurrentUser ? "✅ Present" : "❌ Missing",
-      "Custom Auth User": user ? "✅ Present" : "❌ Missing",
-    });
-    
-    if (isSignedIn && clerkUser && !session) {
-      console.error("❌ CRITICAL: Clerk user is signed in but NO SESSION exists!");
-      console.error("This means Clerk authentication is broken. Try:");
-      console.error("1. Check Clerk dashboard for correct keys");
-      console.error("2. Verify NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY is set");
-      console.error("3. Check browser network tab for Clerk API calls");
+    if (loadedForm && initialFormId && !isFormLoaded) {
+      setFormSchema({
+        id: loadedForm._id,
+        title: loadedForm.title,
+        description: loadedForm.description || "",
+        elements: loadedForm.elements || [],
+        status: loadedForm.status,
+        publishedAt: loadedForm.publishedAt,
+        shareUrl: loadedForm.shareUrl,
+        embedCode: loadedForm.embedCode,
+      })
+      setFormId(loadedForm._id)
+      setIsNew(false)
+      setHasUnsavedChanges(false)
+      // Existing forms start in read-only mode (only set on initial load)
+      setIsEditMode(false)
+      setIsFormLoaded(true)
     }
-  }, [clerkUser, isSignedIn, session, getCurrentUser, user]);
-  
+  }, [loadedForm, initialFormId, isFormLoaded])
+
+  // Note: Convex queries are safe here because FormBuilder is used inside <Authenticated> component
+
+  // Save form as draft callback - must be defined before early returns
+  // Use ref to avoid recreating callback when formSchema changes
+  const saveFormAsDraft = useCallback(async (showToast = true) => {
+    // Check if in edit mode
+    if (!isEditMode) {
+      return false
+    }
+
+    // Check authentication before saving
+    if (!user || !isSignedIn || !session) {
+      if (showToast) {
+        toast({
+          title: "Authentication required",
+          description: "Please sign in to save forms. Your session may have expired.",
+          variant: "destructive",
+        })
+      }
+      return false
+    }
+
+    // Get current formSchema from ref to avoid dependency issues
+    const currentSchema = formSchemaRef.current
+
+    setIsSaving(true)
+    try {
+      if (isNew) {
+        const newId = await createForm({
+          title: currentSchema.title,
+          description: currentSchema.description,
+          elements: currentSchema.elements,
+        }) as Id<"forms">
+        setFormId(newId)
+        setIsNew(false)
+        setFormSchema(prev => ({ ...prev, id: newId }))
+        setHasUnsavedChanges(false)
+        setLastSaved(new Date())
+
+        // Update URL without navigating
+        const newUrl = `/dashboard/form-editor/${newId}`
+        window.history.replaceState({ ...window.history.state, as: newUrl, url: newUrl }, '', newUrl)
+
+        if (showToast) {
+          toast({
+            title: "Form saved as draft",
+            description: "Your form has been saved successfully",
+          })
+        }
+        return true
+      } else if (formId) {
+        // Preserve the existing status when saving (don't force to draft)
+        // Use the current status from formSchema to maintain consistency
+        await updateForm({
+          id: formId,
+          title: currentSchema.title,
+          description: currentSchema.description,
+          elements: currentSchema.elements,
+          status: currentSchema.status, // Preserve current status instead of forcing to draft
+        })
+        setHasUnsavedChanges(false)
+        setLastSaved(new Date())
+        if (showToast) {
+          toast({
+            title: "Form saved",
+            description: "Your changes have been saved",
+          })
+        }
+        return true
+      }
+      return false
+    } catch (error: any) {
+      const errorMsg = error?.message || String(error);
+      if (showToast) {
+        if (errorMsg.includes("Not authenticated") || errorMsg.includes("authentication")) {
+          toast({
+            title: "Authentication Error",
+            description: "Your session expired. Please sign in again and try saving.",
+            variant: "destructive",
+          })
+        } else {
+          toast({
+            title: "Failed to save form",
+            description: error instanceof Error ? error.message : "An error occurred",
+            variant: "destructive",
+          })
+        }
+      }
+      return false
+    } finally {
+      setIsSaving(false)
+    }
+  }, [user, isSignedIn, session, isNew, formId, createForm, updateForm, toast, isEditMode])
+
+  // Track changes to form schema and save immediately
+  useEffect(() => {
+    // Only save if in edit mode
+    if (!isEditMode) {
+      return
+    }
+
+    // Mark as having unsaved changes
+    setHasUnsavedChanges(true)
+
+    // Save immediately on any change (no debounce)
+    saveFormAsDraft(false) // Silent auto-save
+  }, [formSchema.title, formSchema.description, formSchema.elements, isEditMode, saveFormAsDraft])
+
+  // Handler to toggle edit mode
+  const handleToggleEditMode = (checked: boolean) => {
+    // Prevent disabling edit mode if there are unsaved changes
+    if (!checked && hasUnsavedChanges) {
+      toast({
+        title: "Unsaved Changes",
+        description: "Please save your changes before disabling edit mode.",
+        variant: "destructive",
+      })
+      return
+    }
+
+    setIsEditMode(checked)
+    if (checked) {
+      toast({
+        title: "Edit Mode Enabled",
+        description: "You can now edit this form. Changes will be saved automatically.",
+      })
+    } else {
+      toast({
+        title: "Edit Mode Disabled",
+        description: "Form is now in read-only mode.",
+      })
+    }
+  }
+
   // Show loading state while checking authentication
-  if (loading || !clerkLoaded || !sessionLoaded) {
+  if (!clerkLoaded || !sessionLoaded) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <p className="text-lg">Loading...</p>
@@ -136,8 +277,8 @@ export function FormBuilder() {
     );
   }
 
-  // Require authentication to use form builder - check both auth systems
-  if (!user || !isSignedIn || !clerkUser || !session) {
+  // Require authentication to use form builder
+  if (!user || !isSignedIn || !session) {
     return (
       <div className="flex flex-col items-center justify-center min-h-screen p-6">
         <div className="text-center max-w-md">
@@ -155,13 +296,16 @@ export function FormBuilder() {
     );
   }
 
-  const handleDragStart = (event: DragStartEvent) => {
-    setActiveId(event.active.id as string)
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const handleDragStart = (_event: DragStartEvent) => {
+    // Drag started
   }
 
   const handleDragEnd = (event: DragEndEvent) => {
+    // Don't allow drag operations if not in edit mode
+    if (!isEditMode) return
+
     const { active, over } = event
-    setActiveId(null)
 
     if (!over) return
 
@@ -194,15 +338,11 @@ export function FormBuilder() {
       newElements.push(newElement)
 
       setFormSchema((prev) => {
-        const updated = {
+        setHasUnsavedChanges(true)
+        return {
           ...prev,
           elements: newElements,
         }
-        if (!isNew && formId) {
-          const { id: _, ...updateArgs } = updated
-          updateForm({ id: formId, ...updateArgs })
-        }
-        return updated
       })
       return
     }
@@ -220,6 +360,7 @@ export function FormBuilder() {
             elements: newElements,
           }
           if (!isNew && formId) {
+            // eslint-disable-next-line @typescript-eslint/no-unused-vars
             const { id: _, ...updateArgs } = updated
             updateForm({ id: formId, ...updateArgs })
           }
@@ -230,37 +371,38 @@ export function FormBuilder() {
   }
 
   const updateElement = (elementId: string, updates: Partial<FormElement>) => {
+    if (!isEditMode) return
+
     setFormSchema((prev) => {
-      const updated = {
+      setHasUnsavedChanges(true)
+      return {
         ...prev,
         elements: prev.elements.map((el) => (el.id === elementId ? { ...el, ...updates } : el)),
       }
-      if (!isNew && formId) {
-        const { id: _, ...updateArgs } = updated
-        updateForm({ id: formId, ...updateArgs })
-      }
-      return updated
     })
   }
 
   const deleteElement = (elementId: string) => {
+    if (!isEditMode) return
+
     setFormSchema((prev) => {
-      const updated = {
+      setHasUnsavedChanges(true)
+      return {
         ...prev,
         elements: prev.elements.filter((el) => el.id !== elementId),
       }
-      if (!isNew && formId) {
-        const { id: _, ...updateArgs } = updated
-        updateForm({ id: formId, ...updateArgs })
-      }
-      return updated
     })
     setSelectedElementId(null)
   }
 
-  const handlePublishForm = async (settings: { allowAnonymous: boolean; collectEmails: boolean; shareUrl?: string; embedCode?: string }) => {
-    // Check authentication before publishing - verify both auth systems
-    if (!user || !isSignedIn || !clerkUser || !session) {
+  const handlePublishForm = async (settings: {
+    allowAnonymous: boolean
+    collectEmails: boolean
+    shareUrl?: string
+    embedCode?: string
+  }) => {
+    // Check authentication before publishing
+    if (!user || !isSignedIn || !session) {
       toast({
         title: "Authentication required",
         description: "Please sign in to publish forms. Your session may have expired.",
@@ -269,6 +411,7 @@ export function FormBuilder() {
       return
     }
 
+    // Validate form has elements
     if (formSchema.elements.length === 0) {
       toast({
         title: "Cannot publish empty form",
@@ -280,8 +423,9 @@ export function FormBuilder() {
 
     try {
       let currentFormId = formId
-      if (isNew) {
-        // Save first if new
+
+      // Save form first if it's new
+      if (isNew || !formId) {
         try {
           const newId = await createForm({
             title: formSchema.title,
@@ -292,12 +436,9 @@ export function FormBuilder() {
           setFormId(newId)
           setIsNew(false)
           setFormSchema(prev => ({ ...prev, id: newId }))
-          toast({
-            title: "Form saved",
-            description: "Form created and ready to publish",
-          })
+          setHasUnsavedChanges(false)
         } catch (createError: any) {
-          const errorMsg = createError?.message || String(createError);
+          const errorMsg = createError?.message || String(createError)
           if (errorMsg.includes("Not authenticated") || errorMsg.includes("authentication")) {
             toast({
               title: "Authentication Error",
@@ -308,56 +449,39 @@ export function FormBuilder() {
           }
           throw createError
         }
+      } else {
+        // Save any unsaved changes before publishing
+        await saveFormAsDraft(false)
       }
 
-      // Publish
-      try {
-        // Generate share URL and embed code (use provided ones or generate new)
-        const shareUrl = settings.shareUrl || `${window.location.origin}/forms/${currentFormId}`
-        const embedCode = settings.embedCode || `<iframe src="${shareUrl}?embed=true" width="100%" height="600" frameborder="0"></iframe>`
+      // Generate share URL and embed code
+      const shareUrl = settings.shareUrl || `${window.location.origin}/forms/${currentFormId}`
+      const embedCode = settings.embedCode || `<iframe src="${shareUrl}?embed=true" width="100%" height="600" frameborder="0"></iframe>`
 
-        await publishForm({ 
-          id: currentFormId!,
-          shareUrl,
-          embedCode,
-          allowAnonymous: settings.allowAnonymous,
-          collectEmails: settings.collectEmails,
-        })
-
-        setFormSchema((prev) => ({
-          ...prev,
-          status: "published",
-          publishedAt: Date.now(),
-          shareUrl,
-          embedCode,
-          allowAnonymous: settings.allowAnonymous,
-          collectEmails: settings.collectEmails,
-        }))
-
-      toast({
-        title: "Form published successfully!",
-        description: "Your form is now live and ready to collect responses",
+      // Publish the form
+      await publishForm({
+        id: currentFormId!,
+        shareUrl,
+        embedCode,
+        allowAnonymous: settings.allowAnonymous,
+        collectEmails: settings.collectEmails,
       })
 
+      // Update local state
+      const publishedAt = Date.now()
+      setFormSchema((prev) => ({
+        ...prev,
+        status: "published",
+        publishedAt,
+        shareUrl,
+        embedCode,
+      }))
+
+      // Close publish dialog and show share URL dialog
       setShowPublishDialog(false)
-      } catch (error: any) {
-        const errorMsg = error?.message || String(error);
-        if (errorMsg.includes("Not authenticated") || errorMsg.includes("authentication")) {
-          toast({
-            title: "Authentication Error",
-            description: "Your session expired. Please sign in again and try publishing.",
-            variant: "destructive",
-          })
-        } else {
-          toast({
-            title: "Failed to publish form",
-            description: error instanceof Error ? error.message : "An error occurred",
-            variant: "destructive",
-          })
-        }
-      }
+      setShowShareUrlDialog(true)
     } catch (error: any) {
-      const errorMsg = error?.message || String(error);
+      const errorMsg = error?.message || String(error)
       if (errorMsg.includes("Not authenticated") || errorMsg.includes("authentication")) {
         toast({
           title: "Authentication Error",
@@ -422,121 +546,44 @@ export function FormBuilder() {
     }
   }
 
-  const copyEmbedCode = async () => {
-    if (formSchema.embedCode) {
-      const success = await copyToClipboard(formSchema.embedCode)
-      if (success) {
-        toast({
-          title: "Embed code copied!",
-          description: "Embed code has been copied to clipboard",
-        })
-      } else {
-        toast({
-          title: "Failed to copy",
-          description: "Copy to clipboard is not supported in this browser. Please copy the code manually.",
-          variant: "destructive",
-        })
-      }
-    }
-  }
-
-  const saveForm = async () => {
-    // Check authentication before saving - verify both auth systems
-    if (!user || !isSignedIn || !clerkUser || !session) {
-      toast({
-        title: "Authentication required",
-        description: "Please sign in to save forms. Your session may have expired.",
-        variant: "destructive",
-      })
-      return
-    }
-
-    if (formSchema.elements.length === 0 && formSchema.title === "Untitled Form") {
-      toast({
-        title: "Empty form",
-        description: "Add a title or elements to save",
-        variant: "destructive",
-      })
-      return
-    }
-
-    try {
-      if (isNew) {
-        const newId = await createForm({
-          title: formSchema.title,
-          description: formSchema.description,
-          elements: formSchema.elements,
-        }) as Id<"forms">
-        setFormId(newId)
-        setIsNew(false)
-        setFormSchema(prev => ({ ...prev, id: newId }))
-        toast({
-          title: "Form created",
-          description: "Your form has been saved successfully",
-        })
-      } else if (formId) {
-        await updateForm({ id: formId, title: formSchema.title, description: formSchema.description, elements: formSchema.elements })
-        toast({
-          title: "Form updated",
-          description: "Your changes have been saved",
-        })
-      }
-    } catch (error: any) {
-      const errorMsg = error?.message || String(error);
-      if (errorMsg.includes("Not authenticated") || errorMsg.includes("authentication")) {
-        toast({
-          title: "Authentication Error",
-          description: "Your session expired. Please sign in again and try saving.",
-          variant: "destructive",
-        })
-      } else {
-        toast({
-          title: "Failed to save form",
-          description: error instanceof Error ? error.message : "An error occurred",
-          variant: "destructive",
-        })
-      }
-    }
-  }
-
-  
-
-  const renderFormElement = (element: FormElement, index: number) => {
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const renderFormElement = (element: FormElement, _index: number) => {
     const isSelected = selectedElement?.id === element.id
 
     return (
       <div
         key={element.id}
-        className={`mb-4 p-4 border rounded-lg transition-all cursor-move ${
-          isSelected ? "border-primary bg-primary/5" : "border-border hover:border-primary/50"
-        }`}
-        onClick={() => setSelectedElementId(element.id)}
+        className={`mb-4 p-4 border rounded-lg transition-all ${isSelected ? "border-primary bg-primary/5" : "border-border hover:border-primary/50"
+          } ${isEditMode ? "cursor-move" : "cursor-default"}`}
+        onClick={() => isEditMode && setSelectedElementId(element.id)}
         data-element-id={element.id}
       >
         <div className="flex items-center justify-between mb-2">
           <Label className="text-sm font-medium">{element.label}</Label>
-          <div className="flex items-center space-x-2">
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={(e) => {
-                e.stopPropagation()
-                setSelectedElementId(element.id)
-              }}
-            >
-              <Settings className="h-4 w-4" />
-            </Button>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={(e) => {
-                e.stopPropagation()
-                deleteElement(element.id)
-              }}
-            >
-              <Trash2 className="h-4 w-4" />
-            </Button>
-          </div>
+          {isEditMode && (
+            <div className="flex items-center space-x-2">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  setSelectedElementId(element.id)
+                }}
+              >
+                <Settings className="h-4 w-4" />
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  deleteElement(element.id)
+                }}
+              >
+                <Trash2 className="h-4 w-4" />
+              </Button>
+            </div>
+          )}
         </div>
 
         {element.type === "text" || element.type === "email" || element.type === "number" ? (
@@ -591,29 +638,12 @@ export function FormBuilder() {
     )
   }
 
-  if (showIntegrations) {
-    return (
-      <div className="h-full">
-        <div className="flex items-center justify-between p-4 border-b">
-          <h2 className="font-semibold text-lg">Form Integrations</h2>
-          <Button variant="outline" onClick={() => setShowIntegrations(false)}>
-            Back to Editor
-          </Button>
-        </div>
-        <IntegrationsManager
-          formId={formSchema.id}
-          integrations={integrations}
-          onUpdateIntegrations={setIntegrations}
-        />
-      </div>
-    )
-  }
 
   return (
     <DndContext
       collisionDetection={closestCenter}
-      onDragStart={handleDragStart}
-      onDragEnd={handleDragEnd}
+      onDragStart={isEditMode ? handleDragStart : undefined}
+      onDragEnd={isEditMode ? handleDragEnd : undefined}
     >
       <div className="h-full flex flex-col md:flex-row">
         {/* Form Element Palette */}
@@ -628,57 +658,96 @@ export function FormBuilder() {
         {/* Form Canvas */}
         <div className={`flex-1 flex flex-col ${showRealtimePreview ? "md:max-w-[50%]" : ""} p-2 md:p-6`}> {/* Responsive padding */}
           {/* Toolbar */}
-          <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-2 md:gap-0 p-2 md:p-4 border-b bg-card">
-            <div className="flex flex-col md:flex-row md:items-center md:space-x-4 w-full">
-              <div className="flex-1">
-                <Input
-                  value={formSchema.title}
-                  onChange={(e) => setFormSchema((prev) => {
-                    const updated = { ...prev, title: e.target.value }
-                    if (!isNew && formId) {
-                      const { id: _, ...updateArgs } = updated
-                      updateForm({ id: formId, ...updateArgs })
-                    }
-                    return updated
-                  })}
-                  className="font-semibold text-lg border-none p-0 h-auto focus-visible:ring-0"
-                  placeholder="Form Title"
-                />
-                <Input
-                  value={formSchema.description}
-                  onChange={(e) => setFormSchema((prev) => {
-                    const updated = { ...prev, description: e.target.value }
-                    if (!isNew && formId) {
-                      const { id: _, ...updateArgs } = updated
-                      updateForm({ id: formId, ...updateArgs })
-                    }
-                    return updated
-                  })}
-                  className="text-sm text-muted-foreground border-none p-0 h-auto focus-visible:ring-0 mt-1"
-                  placeholder="Form Description"
-                />
-              </div>
-              {formSchema.status === "published" && (
-                <div className="flex items-center space-x-2 text-sm mt-2 md:mt-0">
-                  <Globe className="h-4 w-4 text-green-600" />
-                  <span className="text-green-600 font-medium">Published</span>
+          <div className="flex flex-col gap-3 p-4 border-b bg-card">
+            {/* Edit Mode Toggle & Status */}
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-3">
+                <div className="flex items-center space-x-2">
+                  <Switch
+                    id="edit-mode"
+                    checked={isEditMode}
+                    onCheckedChange={handleToggleEditMode}
+                    disabled={hasUnsavedChanges && isEditMode}
+                  />
+                  <Label htmlFor="edit-mode" className="cursor-pointer flex items-center space-x-2">
+                    <Edit className="h-4 w-4" />
+                    <span className="text-sm font-medium">
+                      {isEditMode ? "Edit Mode" : "View Mode"}
+                    </span>
+                  </Label>
                 </div>
-              )}
+                {formSchema.status === "published" && (
+                  <div className="flex items-center space-x-2 text-sm">
+                    <Globe className="h-4 w-4 text-green-600" />
+                    <span className="text-green-600 font-medium">Published</span>
+                  </div>
+                )}
+                {hasUnsavedChanges && isEditMode && (
+                  <span className="text-xs text-muted-foreground">
+                    Unsaved changes
+                  </span>
+                )}
+              </div>
+              <div className="flex items-center gap-2">
+                {lastSaved && !hasUnsavedChanges && (
+                  <span className="text-xs text-muted-foreground">
+                    Saved {lastSaved.toLocaleTimeString()}
+                  </span>
+                )}
+                {isEditMode && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => saveFormAsDraft(true)}
+                    disabled={isSaving}
+                  >
+                    <Save className="h-4 w-4 mr-2" />
+                    {isSaving ? "Saving..." : "Save"}
+                  </Button>
+                )}
+              </div>
             </div>
-            <div className="flex flex-wrap items-center gap-2 mt-2 md:mt-0">
+
+            {/* Form Title & Description */}
+            <div className="space-y-2">
+              <Input
+                value={formSchema.title}
+                onChange={(e) => setFormSchema((prev) => {
+                  setHasUnsavedChanges(true)
+                  return { ...prev, title: e.target.value }
+                })}
+                disabled={!isEditMode}
+                className="font-semibold text-lg border-none p-0 h-auto focus-visible:ring-0 disabled:opacity-100 disabled:cursor-not-allowed"
+                placeholder="Form Title"
+              />
+              <Input
+                value={formSchema.description}
+                onChange={(e) => setFormSchema((prev) => {
+                  setHasUnsavedChanges(true)
+                  return { ...prev, description: e.target.value }
+                })}
+                disabled={!isEditMode}
+                className="text-sm text-muted-foreground border-none p-0 h-auto focus-visible:ring-0 disabled:opacity-100 disabled:cursor-not-allowed"
+                placeholder="Form Description"
+              />
+            </div>
+
+            {/* Action Buttons */}
+            <div className="flex flex-wrap items-center gap-2">
               <Button
                 variant="outline"
+                size="sm"
                 onClick={() => setShowRealtimePreview(!showRealtimePreview)}
                 className={showRealtimePreview ? "bg-primary/10" : ""}
               >
                 {showRealtimePreview ? <EyeOff className="h-4 w-4 mr-2" /> : <Eye className="h-4 w-4 mr-2" />}
                 {showRealtimePreview ? "Hide Preview" : "Show Preview"}
               </Button>
-              <Button variant="outline" onClick={() => setShowPreview(true)}>
+              <Button variant="outline" size="sm" onClick={() => setShowPreview(true)}>
                 <Eye className="h-4 w-4 mr-2" />
                 Full Preview
               </Button>
-              <Button variant="outline" onClick={() => setShowIntegrations(true)}>
+              <Button variant="outline" size="sm" onClick={() => setShowIntegrations(true)}>
                 <Zap className="h-4 w-4 mr-2" />
                 Integrations
                 {integrations.filter((i) => i.enabled).length > 0 && (
@@ -689,13 +758,9 @@ export function FormBuilder() {
               </Button>
               {formSchema.status === "published" ? (
                 <div className="flex items-center space-x-2">
-                  <Button variant="outline" onClick={copyShareUrl}>
-                    <Copy className="h-4 w-4 mr-2" />
-                    Copy Link
-                  </Button>
-                  <Button variant="outline" onClick={() => setShowPublishDialog(true)}>
+                  <Button variant="outline" onClick={() => setShowShareUrlDialog(true)}>
                     <Share className="h-4 w-4 mr-2" />
-                    Share Options
+                    Share
                   </Button>
                   <Button variant="outline" onClick={handleUnpublishForm}>
                     Unpublish
@@ -707,7 +772,7 @@ export function FormBuilder() {
                   Publish Form
                 </Button>
               )}
-              
+
             </div>
           </div>
 
@@ -741,7 +806,7 @@ export function FormBuilder() {
         )}
 
         {/* Element Configuration Panel */}
-        {selectedElement && (
+        {selectedElement && isEditMode && (
           <div className="w-full md:w-80 border-t md:border-t-0 md:border-l border-border bg-card flex-shrink-0">
             <FormElementConfig
               element={selectedElement}
@@ -756,8 +821,34 @@ export function FormBuilder() {
           open={showPublishDialog}
           onOpenChange={setShowPublishDialog}
           formSchema={formSchema}
-          // onPublish={handlePublishForm}
+          onPublish={handlePublishForm}
         />
+
+        {/* Share URL Dialog - shown after publishing */}
+        <ShareUrlDialog
+          open={showShareUrlDialog}
+          onOpenChange={setShowShareUrlDialog}
+          shareUrl={formSchema.shareUrl || ""}
+          embedCode={formSchema.embedCode}
+          publishedAt={formSchema.publishedAt}
+          formTitle={formSchema.title}
+        />
+
+        {/* Integrations Dialog */}
+        <Dialog open={showIntegrations} onOpenChange={setShowIntegrations}>
+          <DialogContent className="w-[60%] max-w-[60%] sm:max-w-[60%] h-[90vh] flex flex-col p-0">
+            <DialogHeader className="px-6 pt-6 pb-4 border-b">
+              <DialogTitle>Form Integrations</DialogTitle>
+            </DialogHeader>
+            <div className="flex-1 overflow-hidden">
+              <IntegrationsManager
+                formId={formSchema.id}
+                integrations={integrations}
+                onUpdateIntegrations={setIntegrations}
+              />
+            </div>
+          </DialogContent>
+        </Dialog>
       </div>
     </DndContext>
   )

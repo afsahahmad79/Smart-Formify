@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from "react"
 import { useSignUp } from "@clerk/nextjs"
+import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -10,11 +11,8 @@ import { Alert, AlertDescription } from "@/components/ui/alert"
 import { AlertTriangle } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 
-interface SignupFormProps {
-  onToggleMode: () => void
-}
-
-export function SignupForm({ onToggleMode }: SignupFormProps) {
+export function SignupForm() {
+  const router = useRouter()
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [name, setName] = useState("")
@@ -94,14 +92,15 @@ export function SignupForm({ onToggleMode }: SignupFormProps) {
 
       // Step 2: Check if email verification is required
       if (signUpResult.status === "missing_requirements") {
-        // If email verification is required, prepare it
+        // If email verification is required, prepare it and redirect to verification page
         await signUp.prepareEmailAddressVerification({ strategy: "email_code" })
         toast({
           title: "Verification Email Sent",
-          description: "Please check your inbox to verify your account. You must verify before signing in.",
+          description: "Please check your inbox to verify your account.",
           variant: "default",
         })
-        // Don't redirect - let user know they need to verify
+        // Redirect to verification page
+        router.push("/auth/verify-email")
       } else if (signUpResult.status === "complete") {
         // Account created and verified immediately (if email verification is disabled)
         await setActive({ session: signUpResult.createdSessionId })
@@ -110,20 +109,15 @@ export function SignupForm({ onToggleMode }: SignupFormProps) {
           description: "Redirecting to dashboard...",
           variant: "default",
         })
-        setTimeout(() => {
-          window.location.href = "/dashboard"
-        }, 1000)
+        router.push("/dashboard")
       } else {
         toast({
           title: "Account Created",
           description: "Please check your email to verify your account before signing in.",
           variant: "default",
         })
-      }
-      
-      // Only redirect to login if verification is required
-      if (signUpResult.status === "missing_requirements") {
-        onToggleMode()
+        // Redirect to verification page as fallback
+        router.push("/auth/verify-email")
       }
     } catch (err: any) {
       console.error("Signup Error:", err)
@@ -197,12 +191,6 @@ export function SignupForm({ onToggleMode }: SignupFormProps) {
             {loading ? "Creating Account..." : "Create Account"}
           </Button>
         </form>
-        <div className="mt-4 text-center text-sm">
-          Already have an account?{" "}
-          <button onClick={onToggleMode} className="text-primary hover:underline font-medium">
-            Sign in
-          </button>
-        </div>
       </CardContent>
     </Card>
   )

@@ -1,15 +1,6 @@
 "use client"
 
-import dynamic from 'next/dynamic'
-
-const DashboardPage = dynamic(() => import('@/components/dashboard/dashboard-page'), {
-  ssr: false,
-  loading: () => (
-    <div className="min-h-screen flex items-center justify-center">
-      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-    </div>
-  )
-})
+import DashboardPage from "@/components/dashboard/dashboard-page"
 
 export default function HomePage() {
   return <DashboardPage />

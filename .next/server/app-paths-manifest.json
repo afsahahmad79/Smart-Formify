@@ -1,5 +1,23 @@
 {
-  "/page": "app/page.js",
+  "/_not-found/page": "app/_not-found/page.js",
+  "/_global-error/page": "app/_global-error/page.js",
+  "/api/gemini/route": "app/api/gemini/route.js",
+  "/api/sheets/create/route": "app/api/sheets/create/route.js",
+  "/api/generate-form/route": "app/api/generate-form/route.js",
+  "/api/webhook/register/route": "app/api/webhook/register/route.js",
+  "/api/submissions/route": "app/api/submissions/route.js",
+  "/api/webhooks/clerk/route": "app/api/webhooks/clerk/route.js",
+  "/favicon.ico/route": "app/favicon.ico/route.js",
+  "/admin/page": "app/admin/page.js",
+  "/about/page": "app/about/page.js",
+  "/auth/verify-email/page": "app/auth/verify-email/page.js",
+  "/contact/page": "app/contact/page.js",
+  "/auth/sign-up/page": "app/auth/sign-up/page.js",
   "/auth/sign-in/page": "app/auth/sign-in/page.js",
-  "/dashboard/page": "app/dashboard/page.js"
+  "/settings/page": "app/settings/page.js",
+  "/page": "app/page.js",
+  "/forms/[id]/page": "app/forms/[id]/page.js",
+  "/dashboard/form-editor/page": "app/dashboard/form-editor/page.js",
+  "/dashboard/page": "app/dashboard/page.js",
+  "/dashboard/form-editor/[id]/page": "app/dashboard/form-editor/[id]/page.js"
 }

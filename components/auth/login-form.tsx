@@ -9,11 +9,7 @@ import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { useToast } from "@/hooks/use-toast"
 
-interface LoginFormProps {
-  onToggleMode: () => void
-}
-
-export function LoginForm({ onToggleMode }: LoginFormProps) {
+export function LoginForm() {
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const { signIn, isLoaded, setActive } = useSignIn()
@@ -53,7 +49,14 @@ export function LoginForm({ onToggleMode }: LoginFormProps) {
           variant: "default",
         })
         router.push("/dashboard")
-      
+      } else if (result.status === "needs_first_factor") {
+        // Email verification might be required
+        toast({
+          title: "Verification Required",
+          description: "Please verify your email address to continue.",
+          variant: "destructive",
+        })
+        router.push("/auth/verify-email")
       } else if (result.status === "needs_identifier") {
         toast({
           title: "Sign-in Incomplete",
@@ -122,12 +125,6 @@ export function LoginForm({ onToggleMode }: LoginFormProps) {
             {loading ? "Signing In..." : "Sign In"}
           </Button>
         </form>
-        <div className="mt-4 text-center text-sm">
-          Don't have an account?{" "}
-          <button onClick={onToggleMode} className="text-primary hover:underline font-medium">
-            Sign up
-          </button>
-        </div>
       </CardContent>
     </Card>
   )

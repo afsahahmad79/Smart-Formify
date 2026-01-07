@@ -1,20 +1,19 @@
 "use client"
 
-import { useState } from "react"
-import { LoginForm } from "@/components/auth/login-form"
 import { SignupForm } from "@/components/auth/signup-form"
+import Link from "next/link"
 
 export default function SignUpPage() {
-  const [isLogin, setIsLogin] = useState(false)
-
   return (
     <div className="min-h-screen flex items-center justify-center bg-background p-4">
       <div className="w-full max-w-md space-y-4">
-        {isLogin ? (
-          <LoginForm onToggleMode={() => setIsLogin(false)} />
-        ) : (
-          <SignupForm onToggleMode={() => setIsLogin(true)} />
-        )}
+        <SignupForm />
+        <div className="text-center text-sm text-muted-foreground">
+          Already have an account?{" "}
+          <Link href="/auth/sign-in" className="text-primary hover:underline font-medium">
+            Sign in
+          </Link>
+        </div>
       </div>
     </div>
   )

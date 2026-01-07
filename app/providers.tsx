@@ -1,21 +1,29 @@
 "use client";
 
-import React from "react";
+import React, { useEffect } from "react";
 import { ClerkProvider } from "@clerk/nextjs";
 import { ConvexReactClient } from "convex/react";
 
 import { ConvexProviderWithClerk } from "convex/react-clerk";
 import { useAuth } from "@clerk/nextjs";
-// ...other imports
 
-
-import { AuthProvider } from "@/components/auth/auth-context";
-import "../components/errors/intercept-console-error";
 import { ErrorBoundary } from "@/components/errors/error-boundary";
+
+// Initialize console error interception safely
+function useConsoleErrorInterception() {
+  useEffect(() => {
+    // Dynamically import to avoid chunk loading issues
+    import("../components/errors/intercept-console-error").catch(() => {
+      // Silently fail if chunk loading fails - this is non-critical
+    });
+  }, []);
+}
 
 const convex = new ConvexReactClient(process.env.NEXT_PUBLIC_CONVEX_URL!);
 
 export function Providers({ children }: { children: React.ReactNode }) {
+  useConsoleErrorInterception();
+  
   return (
     <ClerkProvider
       publishableKey={process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY!}
@@ -37,15 +45,13 @@ export function Providers({ children }: { children: React.ReactNode }) {
       signInUrl="/auth/sign-in"
       signUpUrl="/auth/sign-up"
       afterSignInUrl="/dashboard"
-      afterSignUpUrl="/dashboard"
+      afterSignUpUrl="/auth/verify-email"
     >
-      {/* Convex + Clerk Integration */}
+      {/* Convex + Clerk Integration - Following official Convex docs pattern */}
       <ConvexProviderWithClerk client={convex} useAuth={useAuth}>
-        <AuthProvider>
-          <ErrorBoundary>
-            {children}
-          </ErrorBoundary>
-        </AuthProvider>
+        <ErrorBoundary>
+          {children}
+        </ErrorBoundary>
       </ConvexProviderWithClerk>
     </ClerkProvider>
   );

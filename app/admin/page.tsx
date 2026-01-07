@@ -32,11 +32,11 @@ import { Badge } from "@/components/ui/badge";
 
 export default function AdminPage() {
   const router = useRouter();
-  const currentUser = useQuery(api.users.getCurrent);
-  const users = useQuery(api.users.getAll);
+  const currentUser = useQuery(api.users.queries.getCurrent);
+  const users = useQuery(api.users.queries.getAll);
 
-  const updateRole = useMutation(api.users.updateRole);
-  const deleteUser = useMutation(api.users.deleteUser);
+  const updateRole = useMutation(api.users.mutations.updateRole);
+  const deleteUser = useMutation(api.users.mutations.deleteUser);
 
   useEffect(() => {
     if (currentUser && currentUser.role !== "admin") {
